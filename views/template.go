@@ -2,10 +2,10 @@ package views
 
 import (
 	"github.com/hujh/gmvc"
-	"html/template"
 	"io/ioutil"
 	"path/filepath"
 	"sync"
+	"text/template"
 	"time"
 )
 

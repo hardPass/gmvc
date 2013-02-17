@@ -34,10 +34,14 @@ func (r *REST) Register(pattern string, controller interface{}) error {
 		return err
 	}
 
+	pub := false
 	for i := 0; i < nm; i++ {
 		m := t.Method(i)
-		p := fmt.Sprintf("%s /", strings.ToUpper(m.Name))
+		if strings.Title(m.Name) != m.Name {
+			continue
+		}
 
+		p := fmt.Sprintf("%s /", strings.ToUpper(m.Name))
 		h, err := newMethodHandler(controller, m, r.arguments)
 		if err != nil {
 			return err
@@ -46,6 +50,11 @@ func (r *REST) Register(pattern string, controller interface{}) error {
 		if err := router.Handle(p, h); err != nil {
 			return err
 		}
+		pub = true
+	}
+
+	if !pub {
+		return fmt.Errorf("controller '%s' has no public method", t)
 	}
 
 	return nil

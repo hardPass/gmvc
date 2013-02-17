@@ -21,12 +21,11 @@ type Context struct {
 
 	app            *App
 	router         *Router
+	form           Form
+	multipartForm  *MultipartForm
 	session        Session
 	sessionManager *SessionManager
 	errorHandler   ErrorHandler
-
-	form          Form
-	multipartForm *MultipartForm
 }
 
 func (c *Context) App() *App {

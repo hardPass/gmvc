@@ -116,12 +116,40 @@ func (rt *Router) HandleFunc(pattern string, f HandlerFunc) error {
 	return rt.Handle(pattern, f)
 }
 
+type FilterContext struct {
+	chain   *routeChain
+	Context *Context
+	Vars    PathVars
+	next    bool
+}
+
+func newFilterContext(chain *routeChain) *FilterContext {
+	return &FilterContext{
+		chain:   chain,
+		Context: chain.context,
+		Vars:    make(PathVars),
+	}
+}
+
+func (fc *FilterContext) Next() error {
+	if fc.next {
+		return errors.New("multiple FilterContext.Next calls")
+	}
+
+	fc.next = true
+	ok, err := fc.chain.next()
+	if ok {
+		return err
+	}
+	return nil
+}
+
 type routeChain struct {
 	context *Context
 	urlpath string
 	filters []*filter
 	routes  []route
-	fpos    int
+	pos     int
 	tail    bool
 }
 
@@ -139,28 +167,27 @@ func (rc *routeChain) next() (bool, error) {
 		return false, nil
 	}
 
-	for rc.fpos < len(rc.filters) {
-		fr := rc.filters[rc.fpos]
-		rc.fpos++
+	if rc.pos == len(rc.filters) {
+		rc.tail = true
+		for _, route := range rc.routes {
+			if ok, err := route.do(rc.context, rc.urlpath); ok {
+				return true, err
+			}
+		}
+		return false, nil
+	}
+
+	for rc.pos < len(rc.filters) {
+		fr := rc.filters[rc.pos]
+		rc.pos++
 
 		fc := newFilterContext(rc)
-		ok, err := fr.do(fc, rc.urlpath)
-		if !ok {
-			continue
-		}
-
-		return true, err
-	}
-
-	for _, route := range rc.routes {
-		if ok, err := route.do(rc.context, rc.urlpath); ok {
-			rc.tail = true
-			return ok, err
+		if ok, err := fr.do(fc, rc.urlpath); ok {
+			return true, err
 		}
 	}
 
-	rc.tail = true
-	return false, nil
+	return rc.next()
 }
 
 type filter struct {
@@ -188,10 +215,7 @@ func newFilter(pattern string, f Filter) (*filter, error) {
 }
 
 func (fr *filter) do(fc *FilterContext, urlpath string) (bool, error) {
-	if fr.tpl == nil {
-		return true, nil
-	}
-	if fr.tpl.match(urlpath, fc.Vars) {
+	if fr.tpl == nil || fr.tpl.match(urlpath, fc.Vars) {
 		err := fr.filter.DoFilter(fc)
 		return true, err
 	}
@@ -221,7 +245,6 @@ func (sr *subroutes) do(c *Context, urlpath string) (bool, error) {
 		return false, nil
 	}
 	urlpath = path.Join("/", suffix)
-
 	return sr.router.dispatch(c, urlpath)
 }
 
@@ -252,7 +275,6 @@ func (m *handlerRoute) handle(method string, handler Handler) error {
 }
 
 func (m *handlerRoute) do(c *Context, urlpath string) (bool, error) {
-
 	if m.tpl.match(urlpath, c.Vars) {
 		method := strings.ToUpper(c.Request.Method)
 		h := m.handlers[method]
