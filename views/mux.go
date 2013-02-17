@@ -2,7 +2,7 @@ package views
 
 import (
 	"fmt"
-	"gmvc"
+	"github.com/hujh/gmvc"
 	"strings"
 )
 
@@ -17,25 +17,25 @@ func NewMux() *Mux {
 }
 
 func (m *Mux) Render(c *gmvc.Context, name string, value interface{}) error {
-	var subname, vname string
+	var vname, subname string
 
-	s := strings.SplitN(name, ":", 2)
+	ns := strings.SplitN(name, ":", 2)
 
-	if len(s) > 1 {
-		subname = s[0]
-		vname = s[1]
+	if len(ns) > 1 {
+		vname = ns[0]
+		subname = ns[1]
 	} else {
-		subname = name
-		vname = ""
+		vname = name
+		subname = ""
 	}
 
-	view := m.views[subname]
+	view := m.views[vname]
 	if view == nil {
-		err := fmt.Errorf("not found view: %s", subname)
+		err := fmt.Errorf("not found view: %s", vname)
 		return err
 	}
 
-	return view.Render(c, vname, value)
+	return view.Render(c, subname, value)
 }
 
 func (m *Mux) Set(name string, view gmvc.View) {

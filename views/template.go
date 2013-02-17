@@ -1,7 +1,7 @@
 package views
 
 import (
-	"gmvc"
+	"github.com/hujh/gmvc"
 	"html/template"
 	"io/ioutil"
 	"path/filepath"

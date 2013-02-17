@@ -3,7 +3,7 @@ package views
 import (
 	"errors"
 	"fmt"
-	"gmvc"
+	"github.com/hujh/gmvc"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -28,7 +28,6 @@ func NewFileView(root string) *FileView {
 }
 
 func (fv *FileView) Render(c *gmvc.Context, name string, value interface{}) error {
-
 	w := c.ResponseWriter
 	r := c.Request
 

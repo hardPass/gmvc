@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"fmt"
-	"gmvc"
+	"github.com/hujh/gmvc"
 	"reflect"
 	"strings"
 )
@@ -13,23 +13,19 @@ type REST struct {
 }
 
 func NewREST(router *gmvc.Router) *REST {
-
 	r := &REST{
 		router:    router,
 		arguments: make([]Argument, len(defaultArguments)),
 	}
-
 	copy(r.arguments, defaultArguments)
-
 	return r
 }
 
 func (r *REST) Register(pattern string, controller interface{}) error {
-
 	t := reflect.TypeOf(controller)
-	n := t.NumMethod()
+	nm := t.NumMethod()
 
-	if n == 0 {
+	if nm == 0 {
 		return fmt.Errorf("controller '%s' has no method", t)
 	}
 
@@ -38,7 +34,7 @@ func (r *REST) Register(pattern string, controller interface{}) error {
 		return err
 	}
 
-	for i := 0; i < n; i++ {
+	for i := 0; i < nm; i++ {
 		m := t.Method(i)
 		p := fmt.Sprintf("%s /", strings.ToUpper(m.Name))
 

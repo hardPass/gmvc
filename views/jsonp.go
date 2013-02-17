@@ -2,7 +2,7 @@ package views
 
 import (
 	"encoding/json"
-	"gmvc"
+	"github.com/hujh/gmvc"
 )
 
 type JsonpView struct {
@@ -17,8 +17,8 @@ func NewJsonpView() *JsonpView {
 
 func (jv *JsonpView) Render(c *gmvc.Context, name string, value interface{}) error {
 	w := c.ResponseWriter
-
 	h := w.Header()
+
 	if ct := h.Get("Content-Type"); ct == "" {
 		h.Set("Content-Type", "text/javascript")
 	}
@@ -26,7 +26,6 @@ func (jv *JsonpView) Render(c *gmvc.Context, name string, value interface{}) err
 	if name == "" {
 		name = jv.DefaultName
 	}
-
 	if name == "" {
 		name = "_"
 	}
@@ -35,12 +34,12 @@ func (jv *JsonpView) Render(c *gmvc.Context, name string, value interface{}) err
 		return err
 	}
 
-	d, err := json.Marshal(value)
+	b, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
 
-	if _, err := w.Write(d); err != nil {
+	if _, err := w.Write(b); err != nil {
 		return err
 	}
 

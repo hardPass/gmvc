@@ -2,7 +2,7 @@ package views
 
 import (
 	"encoding/json"
-	"gmvc"
+	"github.com/hujh/gmvc"
 )
 
 type JsonView struct {
@@ -14,7 +14,6 @@ func NewJsonView() *JsonView {
 
 func (v *JsonView) Render(c *gmvc.Context, name string, value interface{}) error {
 	w := c.ResponseWriter
-
 	h := w.Header()
 
 	if ct := h.Get("Content-Type"); ct == "" {

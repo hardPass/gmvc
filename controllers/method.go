@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"gmvc"
+	"github.com/hujh/gmvc"
 	"net/http"
 	"reflect"
 )
@@ -18,7 +18,6 @@ type methodHandler struct {
 }
 
 func newMethodHandler(controller interface{}, method reflect.Method, arguments []Argument) (*methodHandler, error) {
-
 	numIn := method.Type.NumIn()
 	args := make([]Argument, numIn-1)
 
@@ -51,14 +50,12 @@ func newMethodHandler(controller interface{}, method reflect.Method, arguments [
 		}
 	}
 
-	h := &methodHandler{
+	return &methodHandler{
 		controller: reflect.ValueOf(controller),
 		method:     method,
 		args:       args,
 		outErr:     outErr,
-	}
-
-	return h, nil
+	}, nil
 }
 
 func (h *methodHandler) Serve(c *gmvc.Context) error {

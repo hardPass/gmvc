@@ -170,11 +170,14 @@ type filter struct {
 }
 
 func newFilter(pattern string, f Filter) (*filter, error) {
+	var tpl *pathTemplate
+
 	if pattern != "" {
-		tpl, err := newPathTemplate(pattern, false)
+		t, err := newPathTemplate(pattern, false)
 		if err != nil {
 			return nil, err
 		}
+		tpl = t
 	}
 
 	return &filter{

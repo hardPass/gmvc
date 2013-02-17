@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"gmvc"
+	"github.com/hujh/gmvc"
 	"io"
 	"net/http"
 	"reflect"
