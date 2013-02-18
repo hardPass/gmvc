@@ -1,15 +1,32 @@
 package views
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/hujh/gmvc"
 	"io/ioutil"
+	"net/http"
 	"path/filepath"
 	"sync"
 	"text/template"
 	"time"
 )
 
+const (
+	vars   string = `{{$ctx := .C}}{{$app := $ctx.App}}{{$req := $ctx.Request}}{{$res := $ctx.ResponseWriter}}`
+	layout        = `%s{{with .D}}%s{{end}}`
+)
+
+var funcMap template.FuncMap = template.FuncMap{
+	"include": func(c *gmvc.Context, urlpath string) (string, error) {
+		err := c.Include(urlpath)
+		return "", err
+	},
+}
+
 type TemplateView struct {
+	ContentType string
+
 	mutex     sync.RWMutex
 	root      string
 	cache     map[string]*templateEntry
@@ -18,19 +35,42 @@ type TemplateView struct {
 
 func NewTemplateView(root string) *TemplateView {
 	return &TemplateView{
-		root:      root,
-		cache:     make(map[string]*templateEntry),
-		cacheTime: 0,
+		ContentType: "text/html",
+		root:        root,
+		cache:       make(map[string]*templateEntry),
+		cacheTime:   0,
 	}
 }
 
-func (v *TemplateView) Render(c *gmvc.Context, name string, value interface{}) error {
+func (v *TemplateView) Render(c *gmvc.Context, name string, data interface{}) error {
 	t, err := v.lookup(name)
 	if err != nil {
 		return err
 	}
 
-	if err := t.Execute(c.ResponseWriter, value); err != nil {
+	w := c.ResponseWriter
+	defer func() {
+		c.ResponseWriter = w
+	}()
+
+	bw := newBufferWriter(c.ResponseWriter)
+	c.ResponseWriter = bw
+
+	tdata := &templateData{
+		C: c,
+		D: data,
+	}
+
+	if err := t.Execute(bw, tdata); err != nil {
+		return err
+	}
+
+	h := c.ResponseWriter.Header()
+	if ct := h.Get("Content-Type"); ct == "" {
+		h.Set("Content-Type", v.ContentType)
+	}
+
+	if err := bw.flush(); err != nil {
 		return err
 	}
 
@@ -90,8 +130,9 @@ func (v *TemplateView) load(name string) (*template.Template, error) {
 		return nil, err
 	}
 
-	s := string(b)
+	s := fmt.Sprintf(layout, vars, b)
 	t := template.New(tplpath)
+	t = t.Funcs(funcMap)
 
 	_, err = t.Parse(s)
 	if err != nil {
@@ -99,6 +140,35 @@ func (v *TemplateView) load(name string) (*template.Template, error) {
 	}
 
 	return t, nil
+}
+
+type bufferWriter struct {
+	http.ResponseWriter
+	b *bytes.Buffer
+}
+
+func newBufferWriter(w http.ResponseWriter) *bufferWriter {
+	return &bufferWriter{
+		ResponseWriter: w,
+		b:              new(bytes.Buffer),
+	}
+}
+
+func (w *bufferWriter) WriteHeader(int) {
+}
+
+func (w *bufferWriter) Write(p []byte) (int, error) {
+	return w.b.Write(p)
+}
+
+func (w *bufferWriter) flush() error {
+	_, err := w.b.WriteTo(w.ResponseWriter)
+	return err
+}
+
+type templateData struct {
+	C *gmvc.Context
+	D interface{}
 }
 
 type templateEntry struct {

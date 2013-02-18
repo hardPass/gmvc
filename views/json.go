@@ -12,7 +12,7 @@ func NewJsonView() *JsonView {
 	return &JsonView{}
 }
 
-func (v *JsonView) Render(c *gmvc.Context, name string, value interface{}) error {
+func (v *JsonView) Render(c *gmvc.Context, name string, data interface{}) error {
 	w := c.ResponseWriter
 	h := w.Header()
 
@@ -20,7 +20,7 @@ func (v *JsonView) Render(c *gmvc.Context, name string, value interface{}) error
 		h.Set("Content-Type", "application/json")
 	}
 
-	d, err := json.Marshal(value)
+	d, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}

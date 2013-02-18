@@ -16,7 +16,7 @@ func NewMux() *Mux {
 	}
 }
 
-func (m *Mux) Render(c *gmvc.Context, name string, value interface{}) error {
+func (m *Mux) Render(c *gmvc.Context, name string, data interface{}) error {
 	var vname, subname string
 
 	ns := strings.SplitN(name, ":", 2)
@@ -35,7 +35,7 @@ func (m *Mux) Render(c *gmvc.Context, name string, value interface{}) error {
 		return err
 	}
 
-	return view.Render(c, subname, value)
+	return view.Render(c, subname, data)
 }
 
 func (m *Mux) Set(name string, view gmvc.View) {

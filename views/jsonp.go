@@ -15,7 +15,7 @@ func NewJsonpView() *JsonpView {
 	}
 }
 
-func (jv *JsonpView) Render(c *gmvc.Context, name string, value interface{}) error {
+func (v *JsonpView) Render(c *gmvc.Context, name string, data interface{}) error {
 	w := c.ResponseWriter
 	h := w.Header()
 
@@ -23,18 +23,19 @@ func (jv *JsonpView) Render(c *gmvc.Context, name string, value interface{}) err
 		h.Set("Content-Type", "text/javascript")
 	}
 
-	if name == "" {
-		name = jv.DefaultName
-	}
-	if name == "" {
-		name = "_"
+	fn := name
+	if fn == "" {
+		fn = v.DefaultName
+		if fn == "" {
+			fn = "_"
+		}
 	}
 
-	if _, err := w.Write([]byte(name + "(")); err != nil {
+	if _, err := w.Write([]byte(fn + "(")); err != nil {
 		return err
 	}
 
-	b, err := json.Marshal(value)
+	b, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}

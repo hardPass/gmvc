@@ -27,11 +27,11 @@ func NewFileView(root string) *FileView {
 	}
 }
 
-func (fv *FileView) Render(c *gmvc.Context, name string, value interface{}) error {
+func (v *FileView) Render(c *gmvc.Context, name string, data interface{}) error {
 	w := c.ResponseWriter
 	r := c.Request
 
-	root, err := filepath.Abs(fv.root)
+	root, err := filepath.Abs(v.root)
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func (fv *FileView) Render(c *gmvc.Context, name string, value interface{}) erro
 		return nil
 	}
 
-	if fv.checkLastModified(w, r, d.ModTime()) {
+	if v.checkLastModified(w, r, d.ModTime()) {
 		return nil
 	}
 
@@ -82,13 +82,13 @@ func (fv *FileView) Render(c *gmvc.Context, name string, value interface{}) erro
 
 	var sendContent io.Reader = f
 	if size >= 0 {
-		ranges, err := fv.parseRange(r.Header.Get("Range"), size)
+		ranges, err := v.parseRange(r.Header.Get("Range"), size)
 		if err != nil {
 			c.ErrorStatus(err, http.StatusRequestedRangeNotSatisfiable)
 			return nil
 		}
 
-		if fv.sumRangesSize(ranges) >= size {
+		if v.sumRangesSize(ranges) >= size {
 			ranges = nil
 		}
 
@@ -109,7 +109,7 @@ func (fv *FileView) Render(c *gmvc.Context, name string, value interface{}) erro
 					return nil
 				}
 			}
-			sendSize = fv.rangesMIMESize(ranges, ctype, size)
+			sendSize = v.rangesMIMESize(ranges, ctype, size)
 			code = http.StatusPartialContent
 
 			pr, pw := io.Pipe()
@@ -153,7 +153,7 @@ func (fv *FileView) Render(c *gmvc.Context, name string, value interface{}) erro
 	return nil
 }
 
-func (fv *FileView) checkLastModified(w http.ResponseWriter, r *http.Request, mtime time.Time) bool {
+func (v *FileView) checkLastModified(w http.ResponseWriter, r *http.Request, mtime time.Time) bool {
 	if mtime.IsZero() {
 		return false
 	}
@@ -169,7 +169,7 @@ func (fv *FileView) checkLastModified(w http.ResponseWriter, r *http.Request, mt
 	return false
 }
 
-func (fv *FileView) parseRange(s string, size int64) ([]httpRange, error) {
+func (v *FileView) parseRange(s string, size int64) ([]httpRange, error) {
 	if s == "" {
 		return nil, nil
 	}
@@ -226,14 +226,14 @@ func (fv *FileView) parseRange(s string, size int64) ([]httpRange, error) {
 	return ranges, nil
 }
 
-func (fv *FileView) sumRangesSize(ranges []httpRange) (size int64) {
+func (v *FileView) sumRangesSize(ranges []httpRange) (size int64) {
 	for _, ra := range ranges {
 		size += ra.length
 	}
 	return
 }
 
-func (fv *FileView) rangesMIMESize(ranges []httpRange, contentType string, contentSize int64) (encSize int64) {
+func (v *FileView) rangesMIMESize(ranges []httpRange, contentType string, contentSize int64) (encSize int64) {
 	var w countingWriter
 	mw := multipart.NewWriter(&w)
 	for _, ra := range ranges {

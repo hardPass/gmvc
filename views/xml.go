@@ -12,7 +12,7 @@ func NewXmlView() *XmlView {
 	return &XmlView{}
 }
 
-func (v *XmlView) Render(c *gmvc.Context, name string, value interface{}) error {
+func (v *XmlView) Render(c *gmvc.Context, name string, data interface{}) error {
 
 	w := c.ResponseWriter
 	h := w.Header()
@@ -22,7 +22,7 @@ func (v *XmlView) Render(c *gmvc.Context, name string, value interface{}) error 
 	}
 
 	w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>`))
-	d, err := xml.Marshal(value)
+	d, err := xml.Marshal(data)
 	if err != nil {
 		return err
 	}
