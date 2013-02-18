@@ -39,14 +39,14 @@ func (fv *FileView) Render(c *gmvc.Context, name string, value interface{}) erro
 	p := path.Join(root, name)
 
 	if !strings.HasPrefix(p, root) {
-		fv.status(c, http.StatusBadRequest)
+		c.Status(http.StatusBadRequest)
 		return nil
 	}
 
 	f, err := os.Open(p)
 
 	if err != nil {
-		fv.status(c, http.StatusNotFound)
+		c.Status(http.StatusNotFound)
 		return nil
 	}
 
@@ -54,12 +54,12 @@ func (fv *FileView) Render(c *gmvc.Context, name string, value interface{}) erro
 
 	d, err1 := f.Stat()
 	if err1 != nil {
-		fv.status(c, http.StatusNotFound)
+		c.Status(http.StatusNotFound)
 		return nil
 	}
 
 	if d.IsDir() {
-		fv.status(c, http.StatusNotFound)
+		c.Status(http.StatusNotFound)
 		return nil
 	}
 
@@ -243,10 +243,6 @@ func (fv *FileView) rangesMIMESize(ranges []httpRange, contentType string, conte
 	mw.Close()
 	encSize += int64(w)
 	return
-}
-
-func (fv *FileView) status(c *gmvc.Context, status int) {
-	c.ErrorStatus(errors.New(http.StatusText(status)), status)
 }
 
 type httpRange struct {

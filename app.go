@@ -1,7 +1,6 @@
 package gmvc
 
 import (
-	"errors"
 	"net/http"
 	"path"
 	"strings"
@@ -27,31 +26,32 @@ func NewApp() *App {
 }
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	urlpath := r.URL.Path
-
-	if !strings.HasPrefix(urlpath, a.Path) {
-		c := a.newContext(w, r)
-		c.ErrorStatus(errors.New(http.StatusText(http.StatusNotFound)), http.StatusNotFound)
+	if !strings.HasPrefix(r.URL.Path, a.Path) {
+		s := http.StatusNotFound
+		if eh := a.ErrorHandler; eh != nil {
+			c := a.newContext(w, r)
+			c.Status(s)
+		} else {
+			http.Error(w, http.StatusText(s), s)
+		}
 		return
 	}
 
-	urlpath = path.Join("/", urlpath[len(a.Path):])
+	urlpath := path.Join("/", r.URL.Path[len(a.Path):])
 	a.dispatch(w, r, urlpath)
 }
 
 func (a *App) dispatch(w http.ResponseWriter, r *http.Request, urlpath string) {
 	c := a.newContext(w, r)
 
-	ok, err := a.Router.dispatch(c, urlpath)
-	if ok {
+	if hit, err := a.Router.route(c, urlpath); hit {
 		if err != nil {
 			c.Error(err)
 		}
 		return
 	}
 
-	status := http.StatusNotFound
-	c.ErrorStatus(errors.New(http.StatusText(status)), status)
+	c.Status(http.StatusNotFound)
 }
 
 func (a *App) newContext(w http.ResponseWriter, r *http.Request) *Context {

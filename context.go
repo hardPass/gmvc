@@ -1,6 +1,7 @@
 package gmvc
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -138,6 +139,14 @@ func (c *Context) WriteString(v ...interface{}) error {
 	return err
 }
 
+func (c *Context) Status(status int) {
+	if status >= 400 {
+		c.ErrorStatus(errors.New(http.StatusText(status)), status)
+	} else {
+		c.ResponseWriter.WriteHeader(status)
+	}
+}
+
 func (c *Context) Error(err error) {
 	c.ErrorStatus(err, http.StatusInternalServerError)
 }
@@ -145,7 +154,7 @@ func (c *Context) Error(err error) {
 func (c *Context) ErrorStatus(err error, status int) {
 	h := c.errorHandler
 	if h != nil {
-		h.HandleError(c, status, err)
+		h.HandleError(c, err, status)
 	}
 }
 

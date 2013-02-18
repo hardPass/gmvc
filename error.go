@@ -5,17 +5,16 @@ import (
 )
 
 type ErrorHandler interface {
-	HandleError(c *Context, status int, err error)
+	HandleError(c *Context, err error, status int)
 }
 
 type defaultErrorHandler struct {
 }
 
-func (h *defaultErrorHandler) HandleError(c *Context, status int, err error) {
-	w := c.ResponseWriter
+func (h *defaultErrorHandler) HandleError(c *Context, err error, status int) {
 	if err == nil {
-		http.Error(w, "", status)
+		http.Error(c.ResponseWriter, "", status)
 	} else {
-		http.Error(w, err.Error(), status)
+		http.Error(c.ResponseWriter, err.Error(), status)
 	}
 }

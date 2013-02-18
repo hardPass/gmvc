@@ -31,7 +31,7 @@ func NewRouter() *Router {
 	}
 }
 
-func (rt *Router) dispatch(c *Context, urlpath string) (bool, error) {
+func (rt *Router) route(c *Context, urlpath string) (bool, error) {
 	return newRouteChain(c, urlpath, rt.filters, rt.routes).next()
 }
 
@@ -121,6 +121,7 @@ type FilterContext struct {
 	Context *Context
 	Vars    PathVars
 	next    bool
+	hit     bool
 }
 
 func newFilterContext(chain *routeChain) *FilterContext {
@@ -137,8 +138,9 @@ func (fc *FilterContext) Next() error {
 	}
 
 	fc.next = true
-	ok, err := fc.chain.next()
-	if ok {
+	hit, err := fc.chain.next()
+	fc.hit = hit
+	if hit {
 		return err
 	}
 	return nil
@@ -170,7 +172,7 @@ func (rc *routeChain) next() (bool, error) {
 	if rc.pos == len(rc.filters) {
 		rc.tail = true
 		for _, route := range rc.routes {
-			if ok, err := route.do(rc.context, rc.urlpath); ok {
+			if hit, err := route.do(rc.context, rc.urlpath); hit {
 				return true, err
 			}
 		}
@@ -181,8 +183,7 @@ func (rc *routeChain) next() (bool, error) {
 		fr := rc.filters[rc.pos]
 		rc.pos++
 
-		fc := newFilterContext(rc)
-		if ok, err := fr.do(fc, rc.urlpath); ok {
+		if hit, err := fr.do(rc); hit {
 			return true, err
 		}
 	}
@@ -214,10 +215,11 @@ func newFilter(pattern string, f Filter) (*filter, error) {
 	}, nil
 }
 
-func (fr *filter) do(fc *FilterContext, urlpath string) (bool, error) {
-	if fr.tpl == nil || fr.tpl.match(urlpath, fc.Vars) {
+func (fr *filter) do(chain *routeChain) (bool, error) {
+	fc := newFilterContext(chain)
+	if fr.tpl == nil || fr.tpl.match(chain.urlpath, fc.Vars) {
 		err := fr.filter.DoFilter(fc)
-		return true, err
+		return fc.hit, err
 	}
 	return false, nil
 }
@@ -245,7 +247,7 @@ func (sr *subroutes) do(c *Context, urlpath string) (bool, error) {
 		return false, nil
 	}
 	urlpath = path.Join("/", suffix)
-	return sr.router.dispatch(c, urlpath)
+	return sr.router.route(c, urlpath)
 }
 
 type handlerRoute struct {
@@ -300,7 +302,6 @@ type pathTemplate struct {
 }
 
 func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
-
 	partsubs := part.FindAllStringSubmatch(pattern, -1)
 	parts := make([]string, len(partsubs))
 
@@ -389,35 +390,38 @@ func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
 
 }
 
-func (t *pathTemplate) match(urlpath string, pvars PathVars) bool {
-	if t.regex.MatchString(urlpath) {
-		if pvars != nil && len(t.vars) > 0 {
-			sub := t.regex.FindStringSubmatch(urlpath)
-			for k, v := range t.vars {
-				pvars[k] = sub[v]
-			}
-		}
-		return true
+func (t *pathTemplate) match(urlpath string, vars PathVars) bool {
+	if vars == nil {
+		return t.regex.MatchString(urlpath)
 	}
 
-	return false
+	sub := t.regex.FindStringSubmatch(urlpath)
+	if sub == nil {
+		return false
+	}
+
+	for k, v := range t.vars {
+		vars[k] = sub[v]
+	}
+	return true
 }
 
-func (t *pathTemplate) matchPrefix(urlpath string, pvars PathVars) (bool, string) {
+func (t *pathTemplate) matchPrefix(urlpath string, vars PathVars) (bool, string) {
 	if !t.prefix {
 		return false, ""
 	}
 
-	if t.regex.MatchString(urlpath) {
-		sub := t.regex.FindStringSubmatch(urlpath)
-		if pvars != nil && len(t.vars) > 0 {
-			for k, v := range t.vars {
-				pvars[k] = sub[v]
-			}
-		}
-		suffix := sub[len(sub)-1]
-		return true, suffix
+	sub := t.regex.FindStringSubmatch(urlpath)
+	if sub == nil {
+		return false, ""
 	}
 
-	return false, ""
+	if vars != nil {
+		for k, v := range t.vars {
+			vars[k] = sub[v]
+		}
+	}
+
+	suffix := sub[len(sub)-1]
+	return true, suffix
 }
