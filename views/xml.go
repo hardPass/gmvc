@@ -13,7 +13,6 @@ func NewXmlView() *XmlView {
 }
 
 func (v *XmlView) Render(c *gmvc.Context, name string, data interface{}) error {
-
 	w := c.ResponseWriter
 	h := w.Header()
 
