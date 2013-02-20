@@ -215,19 +215,30 @@ func (w *buffer) flush() error {
 }
 
 var pageFuncs template.FuncMap = template.FuncMap{
-	"import": func(pc *pageContext, values ...interface{}) (string, error) {
-		vc := len(values)
-		if vc == 0 || vc > 2 {
-			fmt.Errorf("wrong number of args for import: want 1 or 2 got %s", vc)
+	"import": func(pc *pageContext, args ...interface{}) (string, error) {
+		ac := len(args)
+		if ac == 0 || ac > 2 {
+			fmt.Errorf("wrong number of args for import: want 1 or 2 got %s", ac)
 		}
-		name := fmt.Sprint(values[0])
+		name := fmt.Sprint(args[0])
 		subpc := pc.sub()
-		if vc > 1 {
-			subpc.Data = values[1]
+		if ac > 1 {
+			subpc.Data = args[1]
 		}
 		return "", pc.view.render(pc, name)
 	},
 	"include": func(pc *pageContext, urlpath string) (string, error) {
 		return "", pc.Context.Include(urlpath)
+	},
+	"session": func(pc *pageContext, args ...bool) (gmvc.Session, error) {
+		ac := len(args)
+		if ac > 1 {
+			return nil, fmt.Errorf("wrong number of args for session: want 0 or 1 got %s", ac)
+		}
+		var create bool
+		if ac == 1 {
+			create = args[0]
+		}
+		return pc.Context.Session(create)
 	},
 }
