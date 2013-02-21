@@ -288,7 +288,7 @@ func (m *handlerRoute) do(c *Context, urlpath string) (bool, error) {
 			c.ErrorStatus(errors.New(http.StatusText(status)), status)
 			return true, nil
 		}
-		err := h.Serve(c)
+		err := h.HandleHTTP(c)
 		return true, err
 	}
 

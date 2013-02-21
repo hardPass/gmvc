@@ -55,18 +55,39 @@ func (a *App) dispatch(w http.ResponseWriter, r *http.Request, urlpath string) {
 }
 
 func (a *App) newContext(w http.ResponseWriter, r *http.Request) *Context {
+	res := &response{ResponseWriter: w}
+
 	return &Context{
-		app:            a,
-		router:         a.Router,
-		sessionManager: a.Session,
-		errorHandler:   a.ErrorHandler,
 		Request:        r,
-		ResponseWriter: w,
+		ResponseWriter: res,
+		Path:           a.Path,
 		Vars:           make(PathVars),
 		Attr:           make(Attr),
 		View:           a.View,
-		Path:           a.Path,
+		app:            a,
+		response:       res,
+		sessionManager: a.Session,
+		errorHandler:   a.ErrorHandler,
 	}
 }
 
 type Attr map[string]interface{}
+
+type response struct {
+	http.ResponseWriter
+	wroteHeader bool
+}
+
+func (r *response) WriteHeader(status int) {
+	if !r.wroteHeader {
+		r.wroteHeader = true
+	}
+	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *response) Write(p []byte) (int, error) {
+	if !r.wroteHeader {
+		r.wroteHeader = true
+	}
+	return r.ResponseWriter.Write(p)
+}

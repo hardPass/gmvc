@@ -21,7 +21,7 @@ type Context struct {
 	Path string
 
 	app            *App
-	router         *Router
+	response       *response
 	form           Form
 	multipartForm  *MultipartForm
 	session        Session
@@ -31,6 +31,10 @@ type Context struct {
 
 func (c *Context) App() *App {
 	return c.app
+}
+
+func (c *Context) WroteHeader() bool {
+	return c.response.wroteHeader
 }
 
 func (c *Context) Form() (Form, error) {
@@ -43,13 +47,11 @@ func (c *Context) Form() (Form, error) {
 	}
 
 	c.form = Form(c.Request.Form)
-
 	return c.form, nil
 }
 
 func (c *Context) MultipartForm(maxMemory int64) (*MultipartForm, error) {
 	f := c.multipartForm
-
 	if f != nil {
 		return f, nil
 	}
@@ -61,10 +63,7 @@ func (c *Context) MultipartForm(maxMemory int64) (*MultipartForm, error) {
 	if err := c.Request.ParseMultipartForm(maxMemory); err != nil {
 		return nil, err
 	}
-
-	f = (*MultipartForm)(c.Request.MultipartForm)
-
-	return f, nil
+	return (*MultipartForm)(c.Request.MultipartForm), nil
 }
 
 func (c *Context) Session(create bool) (s Session, err error) {
@@ -97,7 +96,6 @@ func (c *Context) Include(urlpath string) error {
 	}
 
 	iu := r.URL.ResolveReference(iru)
-
 	ir, err := http.NewRequest("GET", iu.String(), nil)
 	if err != nil {
 		return err
@@ -108,7 +106,6 @@ func (c *Context) Include(urlpath string) error {
 	}
 
 	c.app.dispatch(iw, ir, urlpath)
-
 	return nil
 }
 
@@ -141,7 +138,7 @@ func (c *Context) WriteString(v ...interface{}) error {
 
 func (c *Context) Status(status int) {
 	if status >= 400 {
-		c.ErrorStatus(errors.New(http.StatusText(status)), status)
+		c.ErrorStatus("", status)
 	} else {
 		c.ResponseWriter.WriteHeader(status)
 	}

@@ -17,10 +17,12 @@ func NewJsonpView() *JsonpView {
 
 func (v *JsonpView) Render(c *gmvc.Context, name string, data interface{}) error {
 	w := c.ResponseWriter
-	h := w.Header()
 
-	if ct := h.Get("Content-Type"); ct == "" {
-		h.Set("Content-Type", "text/javascript")
+	if !c.WroteHeader() {
+		h := w.Header()
+		if ct := h.Get("Content-Type"); ct == "" {
+			h.Set("Content-Type", "text/javascript")
+		}
 	}
 
 	fn := name

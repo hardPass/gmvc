@@ -58,7 +58,7 @@ func newMethodHandler(controller interface{}, method reflect.Method, arguments [
 	}, nil
 }
 
-func (h *methodHandler) Serve(c *gmvc.Context) error {
+func (h *methodHandler) HandleHTTP(c *gmvc.Context) error {
 	in := make([]reflect.Value, len(h.args)+1)
 
 	in[0] = h.controller

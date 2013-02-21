@@ -63,9 +63,11 @@ func (v *PageView) Render(c *gmvc.Context, name string, data interface{}) error 
 		return err
 	}
 
-	h := b.Header()
-	if ct := h.Get("Content-Type"); ct == "" {
-		h.Set("Content-Type", v.ContentType)
+	if !c.WroteHeader() {
+		h := b.Header()
+		if ct := h.Get("Content-Type"); ct == "" {
+			h.Set("Content-Type", v.ContentType)
+		}
 	}
 
 	if err := b.flush(); err != nil {
