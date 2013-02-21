@@ -55,7 +55,7 @@ func (a *App) dispatch(w http.ResponseWriter, r *http.Request, urlpath string) {
 }
 
 func (a *App) newContext(w http.ResponseWriter, r *http.Request) *Context {
-	res := &response{ResponseWriter: w}
+	res := newResponse(w)
 
 	return &Context{
 		Request:        r,
@@ -76,6 +76,10 @@ type Attr map[string]interface{}
 type response struct {
 	http.ResponseWriter
 	wroteHeader bool
+}
+
+func newResponse(w http.ResponseWriter) *response {
+	return &response{ResponseWriter: w}
 }
 
 func (r *response) WriteHeader(status int) {
