@@ -79,7 +79,7 @@ func (rt *Router) Handle(pattern string, handler Handler) error {
 		pathPattern = s[0]
 	}
 
-	pathPattern = path.Join("/", pathPattern)
+	pathPattern = path.Join("/", strings.Trim(pathPattern, " "))
 
 	for _, r := range rt.routes {
 		if hr, ok := r.(*handlerRoute); ok {
