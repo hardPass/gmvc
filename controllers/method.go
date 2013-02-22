@@ -67,6 +67,7 @@ func (h *methodHandler) HandleHTTP(c *gmvc.Context) error {
 		v, err := arg.Get(c)
 		if err != nil {
 			c.ErrorStatus(err, http.StatusBadRequest)
+			return nil
 		}
 		in[i+1] = v
 	}
