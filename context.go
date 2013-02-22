@@ -19,6 +19,7 @@ type Context struct {
 	Attr Attr
 	View View
 	Path string
+	Err  error
 
 	app            *App
 	response       *response
@@ -138,7 +139,7 @@ func (c *Context) WriteString(v ...interface{}) error {
 
 func (c *Context) Status(status int) {
 	if status >= 400 {
-		c.ErrorStatus("", status)
+		c.ErrorStatus(errors.New(http.StatusText(status)), status)
 	} else {
 		c.ResponseWriter.WriteHeader(status)
 	}
@@ -149,6 +150,7 @@ func (c *Context) Error(err error) {
 }
 
 func (c *Context) ErrorStatus(err error, status int) {
+	c.Err = err
 	h := c.errorHandler
 	if h != nil {
 		h.HandleError(c, err, status)

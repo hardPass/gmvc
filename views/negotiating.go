@@ -1,8 +1,11 @@
 package views
 
-import ()
+import (
+	"github.com/hujh/gmvc"
+)
 
+// TODO: Content Negotiating support
 type NegotiatingView struct {
-	defaultView View
-	views       map[string]View
+	defaultView gmvc.View
+	views       map[string]gmvc.View
 }
