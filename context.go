@@ -21,13 +21,14 @@ type Context struct {
 	Path string
 	Err  error
 
-	app            *App
-	response       *response
-	form           Form
-	multipartForm  *MultipartForm
-	session        Session
-	sessionManager *SessionManager
-	errorHandler   ErrorHandler
+	app             *App
+	request         *http.Request
+	response        *response
+	form            Form
+	multipartForm   *MultipartForm
+	session         Session
+	sessionProvider SessionProvider
+	errorHandler    ErrorHandler
 }
 
 func (c *Context) App() *App {
@@ -74,7 +75,7 @@ func (c *Context) Session(create bool) (s Session, err error) {
 	}
 
 	if s == nil {
-		s, err = c.sessionManager.Get(c.ResponseWriter, c.Request, create)
+		s, err = c.sessionProvider.GetSession(c.response, c.request, create)
 		if err != nil {
 			return
 		}
@@ -106,7 +107,21 @@ func (c *Context) Include(urlpath string) error {
 		ir.Header[n] = v
 	}
 
-	c.app.dispatch(iw, ir, urlpath)
+	ic := &Context{
+		Request:         ir,
+		ResponseWriter:  iw,
+		Path:            c.Path,
+		Vars:            make(PathVars),
+		Attr:            make(Attr),
+		View:            c.app.View,
+		app:             c.app,
+		request:         c.request,
+		response:        c.response,
+		sessionProvider: c.sessionProvider,
+		errorHandler:    c.errorHandler,
+	}
+
+	c.app.dispatch(ic, urlpath)
 	return nil
 }
 
@@ -154,6 +169,12 @@ func (c *Context) ErrorStatus(err error, status int) {
 	h := c.errorHandler
 	if h != nil {
 		h.HandleError(c, err, status)
+	}
+}
+
+func (c *Context) finalize() {
+	if c.session != nil && c.session.Valid() {
+		c.session.Save()
 	}
 }
 
