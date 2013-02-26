@@ -1,15 +1,17 @@
 package gmvc
 
 import (
+	"errors"
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 )
 
 type App struct {
 	*Router
 	Path            string
-	Attr            Attr
+	Attrs           *AppAttrs
 	View            View
 	SessionProvider SessionProvider
 	ErrorHandler    ErrorHandler
@@ -19,21 +21,17 @@ func NewApp() *App {
 	return &App{
 		Path:         "/",
 		Router:       NewRouter(),
-		Attr:         make(Attr),
+		Attrs:        &AppAttrs{},
 		ErrorHandler: &defaultErrorHandler{},
 	}
 }
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c := a.newContext(w, r)
+	c := a.buildContext(w, r)
 
 	if !strings.HasPrefix(r.URL.Path, a.Path) {
-		s := http.StatusNotFound
-		if eh := a.ErrorHandler; eh != nil {
-			c.Status(s)
-		} else {
-			http.Error(w, http.StatusText(s), s)
-		}
+		defer c.finalize()
+		errorStatus(c, http.StatusNotFound)
 		return
 	}
 
@@ -50,48 +48,50 @@ func (a *App) dispatch(c *Context, urlpath string) {
 		}
 		return
 	}
-	c.Status(http.StatusNotFound)
 
+	errorStatus(c, http.StatusNotFound)
 }
 
-func (a *App) newContext(w http.ResponseWriter, r *http.Request) *Context {
-	res := newResponse(w)
+func (a *App) buildContext(w http.ResponseWriter, r *http.Request) *Context {
 	return &Context{
 		Request:         r,
-		ResponseWriter:  res,
+		ResponseWriter:  w,
 		Path:            a.Path,
 		Vars:            make(PathVars),
-		Attr:            make(Attr),
+		Attrs:           make(Attrs),
 		View:            a.View,
 		app:             a,
 		request:         r,
-		response:        res,
+		response:        w,
 		sessionProvider: a.SessionProvider,
 		errorHandler:    a.ErrorHandler,
 	}
 }
 
-type Attr map[string]interface{}
-
-type response struct {
-	http.ResponseWriter
-	wroteHeader bool
+type AppAttrs struct {
+	mutex  sync.RWMutex
+	values map[string]interface{}
 }
 
-func newResponse(w http.ResponseWriter) *response {
-	return &response{ResponseWriter: w}
+func (a *AppAttrs) Set(key string, value interface{}) {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+	a.values[key] = value
 }
 
-func (r *response) WriteHeader(status int) {
-	if !r.wroteHeader {
-		r.wroteHeader = true
-	}
-	r.ResponseWriter.WriteHeader(status)
+func (a *AppAttrs) Get(key string) interface{} {
+	a.mutex.RLock()
+	defer a.mutex.RUnlock()
+	return a.values[key]
 }
 
-func (r *response) Write(p []byte) (int, error) {
-	if !r.wroteHeader {
-		r.wroteHeader = true
-	}
-	return r.ResponseWriter.Write(p)
+func (a *AppAttrs) Del(key string) {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+	delete(a.values, key)
+}
+
+func errorStatus(c *Context, status int) {
+	err := errors.New(http.StatusText(status))
+	c.ErrorStatus(err, status)
 }

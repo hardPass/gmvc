@@ -284,8 +284,7 @@ func (m *handlerRoute) do(c *Context, urlpath string) (bool, error) {
 			h = m.handlers["*"]
 		}
 		if h == nil {
-			status := http.StatusMethodNotAllowed
-			c.ErrorStatus(errors.New(http.StatusText(status)), status)
+			errorStatus(c, http.StatusMethodNotAllowed)
 			return true, nil
 		}
 		err := h.HandleRequest(c)

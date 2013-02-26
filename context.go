@@ -1,7 +1,6 @@
 package gmvc
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,18 +12,18 @@ const (
 )
 
 type Context struct {
-	Request *http.Request
 	http.ResponseWriter
-	Vars PathVars
-	Attr Attr
-	View View
-	Path string
-	Err  error
+	Request *http.Request
+	Vars    PathVars
+	Attrs   Attrs
+	View    View
+	Path    string
+	Err     error
 
 	app             *App
 	parent          *Context
 	request         *http.Request
-	response        *response
+	response        http.ResponseWriter
 	form            Form
 	multipartForm   *MultipartForm
 	session         Session
@@ -36,10 +35,6 @@ func (c *Context) App() *App {
 	return c.app
 }
 
-func (c *Context) WroteHeader() bool {
-	return c.response.wroteHeader
-}
-
 func (c *Context) Form() (Form, error) {
 	if c.form != nil {
 		return c.form, nil
@@ -48,7 +43,6 @@ func (c *Context) Form() (Form, error) {
 	if err := c.Request.ParseForm(); err != nil {
 		return nil, err
 	}
-
 	c.form = Form(c.Request.Form)
 	return c.form, nil
 }
@@ -58,27 +52,30 @@ func (c *Context) MultipartForm(maxMemory int64) (*MultipartForm, error) {
 	if f != nil {
 		return f, nil
 	}
-
 	if maxMemory <= 0 {
 		maxMemory = defaultMaxMemory
 	}
-
 	if err := c.Request.ParseMultipartForm(maxMemory); err != nil {
 		return nil, err
 	}
-	return (*MultipartForm)(c.Request.MultipartForm), nil
+
+	mf := c.Request.MultipartForm
+	c.multipartForm = &MultipartForm{
+		Form: Form(mf.Value),
+		File: mf.File,
+	}
+
+	return c.multipartForm, nil
 }
 
 func (c *Context) Session(create bool) (s Session, err error) {
 	if c.parent != nil {
 		return c.parent.Session(create)
 	}
-
 	s = c.session
 	if s != nil && !s.Valid() {
 		s = nil
 	}
-
 	if s == nil {
 		s, err = c.sessionProvider.GetSession(c.response, c.request, create)
 		if err != nil {
@@ -86,38 +83,35 @@ func (c *Context) Session(create bool) (s Session, err error) {
 		}
 		c.session = s
 	}
-
 	return
 }
 
 func (c *Context) Include(urlpath string) error {
-	r := c.Request
-	w := c.ResponseWriter
-
-	iw := newContentOnly(w)
 	urlpath = path.Join("/", urlpath)
 
-	iru, err := url.Parse(path.Join("/", c.Path, urlpath))
+	abspath, err := url.Parse(path.Join("/", c.Path, urlpath))
+	if err != nil {
+		return err
+	}
+	requrl := c.Request.URL.ResolveReference(abspath)
+
+	r, err := http.NewRequest("GET", requrl.String(), nil)
 	if err != nil {
 		return err
 	}
 
-	iu := r.URL.ResolveReference(iru)
-	ir, err := http.NewRequest("GET", iu.String(), nil)
-	if err != nil {
-		return err
+	for n, v := range c.Request.Header {
+		r.Header[n] = v
 	}
 
-	for n, v := range r.Header {
-		ir.Header[n] = v
-	}
+	w := newContentOnly(c.ResponseWriter)
 
-	ic := &Context{
-		Request:         ir,
-		ResponseWriter:  iw,
+	sc := &Context{
+		Request:         r,
+		ResponseWriter:  w,
 		Path:            c.Path,
 		Vars:            make(PathVars),
-		Attr:            make(Attr),
+		Attrs:           make(Attrs),
 		View:            c.app.View,
 		app:             c.app,
 		parent:          c,
@@ -127,7 +121,7 @@ func (c *Context) Include(urlpath string) error {
 		errorHandler:    c.errorHandler,
 	}
 
-	c.app.dispatch(ic, urlpath)
+	c.app.dispatch(sc, urlpath)
 	return nil
 }
 
@@ -159,11 +153,7 @@ func (c *Context) WriteString(v ...interface{}) error {
 }
 
 func (c *Context) Status(status int) {
-	if status >= 400 {
-		c.ErrorStatus(errors.New(http.StatusText(status)), status)
-	} else {
-		c.ResponseWriter.WriteHeader(status)
-	}
+	c.ResponseWriter.WriteHeader(status)
 }
 
 func (c *Context) Error(err error) {
@@ -175,6 +165,8 @@ func (c *Context) ErrorStatus(err error, status int) {
 	h := c.errorHandler
 	if h != nil {
 		h.HandleError(c, err, status)
+	} else {
+		http.Error(c.ResponseWriter, http.StatusText(status), status)
 	}
 }
 
@@ -185,6 +177,8 @@ func (c *Context) finalize() {
 		}
 	}
 }
+
+type Attrs map[string]interface{}
 
 type contentOnly struct {
 	h http.Header

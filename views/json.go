@@ -15,11 +15,9 @@ func NewJsonView() *JsonView {
 func (v *JsonView) Render(c *gmvc.Context, name string, data interface{}) error {
 	w := c.ResponseWriter
 
-	if !c.WroteHeader() {
-		h := w.Header()
-		if ct := h.Get("Content-Type"); ct == "" {
-			h.Set("Content-Type", "application/json")
-		}
+	h := w.Header()
+	if ct := h.Get("Content-Type"); ct == "" {
+		h.Set("Content-Type", "application/json")
 	}
 
 	d, err := json.Marshal(data)

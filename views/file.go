@@ -144,9 +144,7 @@ func (v *FileView) Render(c *gmvc.Context, name string, data interface{}) error 
 		}
 	}
 
-	if !c.WroteHeader() {
-		w.WriteHeader(code)
-	}
+	w.WriteHeader(code)
 
 	if r.Method != "HEAD" {
 		io.CopyN(w, sendContent, sendSize)
