@@ -26,7 +26,6 @@ func NewApp() *App {
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := a.newContext(w, r)
-	defer c.finalize()
 
 	if !strings.HasPrefix(r.URL.Path, a.Path) {
 		s := http.StatusNotFound
@@ -43,6 +42,8 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) dispatch(c *Context, urlpath string) {
+	defer c.finalize()
+
 	if hit, err := a.Router.route(c, urlpath); hit {
 		if err != nil {
 			c.Error(err)
@@ -50,6 +51,7 @@ func (a *App) dispatch(c *Context, urlpath string) {
 		return
 	}
 	c.Status(http.StatusNotFound)
+
 }
 
 func (a *App) newContext(w http.ResponseWriter, r *http.Request) *Context {

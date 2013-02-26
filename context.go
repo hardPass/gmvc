@@ -22,6 +22,7 @@ type Context struct {
 	Err  error
 
 	app             *App
+	parent          *Context
 	request         *http.Request
 	response        *response
 	form            Form
@@ -69,6 +70,10 @@ func (c *Context) MultipartForm(maxMemory int64) (*MultipartForm, error) {
 }
 
 func (c *Context) Session(create bool) (s Session, err error) {
+	if c.parent != nil {
+		return c.parent.Session(create)
+	}
+
 	s = c.session
 	if s != nil && !s.Valid() {
 		s = nil
@@ -115,6 +120,7 @@ func (c *Context) Include(urlpath string) error {
 		Attr:            make(Attr),
 		View:            c.app.View,
 		app:             c.app,
+		parent:          c,
 		request:         c.request,
 		response:        c.response,
 		sessionProvider: c.sessionProvider,
@@ -173,8 +179,10 @@ func (c *Context) ErrorStatus(err error, status int) {
 }
 
 func (c *Context) finalize() {
-	if c.session != nil && c.session.Valid() {
-		c.session.Save()
+	if c.parent == nil {
+		if c.session != nil && c.session.Valid() {
+			c.session.Save()
+		}
 	}
 }
 
