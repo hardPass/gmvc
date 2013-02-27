@@ -1,6 +1,7 @@
 package gmvc
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -85,7 +86,12 @@ func (c *Context) Session(create bool) (s Session, err error) {
 		s = nil
 	}
 	if s == nil {
-		s, err = c.sessionProvider.GetSession(c.response, c.request, create)
+		sp := c.sessionProvider
+		if sp == nil {
+			err = errors.New("no available session provider")
+			return
+		}
+		s, err = sp.GetSession(c.response, c.request, create)
 		if err != nil {
 			return
 		}
@@ -149,7 +155,7 @@ func (c *Context) Redirect(urlstr string, code int) error {
 
 func (c *Context) Render(name string, value interface{}) error {
 	if c.View == nil {
-		return fmt.Errorf("not found view: %s", name)
+		return errors.New("no available view")
 	}
 
 	return c.View.Render(c, name, value)

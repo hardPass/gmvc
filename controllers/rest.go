@@ -34,7 +34,7 @@ func (r *REST) Register(pattern string, controller interface{}) error {
 		return err
 	}
 
-	pub := false
+	reg := false
 	for i := 0; i < nm; i++ {
 		m := t.Method(i)
 		if strings.Title(m.Name) != m.Name {
@@ -50,11 +50,11 @@ func (r *REST) Register(pattern string, controller interface{}) error {
 		if err := router.Handle(p, h); err != nil {
 			return err
 		}
-		pub = true
+		reg = true
 	}
 
-	if !pub {
-		return fmt.Errorf("controller '%s' has no public method", t)
+	if !reg {
+		return fmt.Errorf("controller '%s' has no accessible method", t)
 	}
 
 	return nil

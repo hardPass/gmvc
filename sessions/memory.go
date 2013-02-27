@@ -138,11 +138,11 @@ func (p *MemoryProvider) setCookieId(w http.ResponseWriter, id string, persist b
 }
 
 type memorySession struct {
+	w        http.ResponseWriter
 	provider *MemoryProvider
 	store    *memoryStore
 	id       string
 	valid    bool
-	w        http.ResponseWriter
 }
 
 func (s *memorySession) Id() string {
