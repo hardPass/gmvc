@@ -545,17 +545,22 @@ func (f Form) GetStrings(key string) ([]string, bool, error) {
 
 type MultipartForm struct {
 	Form
-	File map[string][]*multipart.FileHeader
+	Files map[string][]*multipart.FileHeader
 }
 
 // file
+
+func (f *MultipartForm) File(key string) *multipart.FileHeader {
+	v, _ := f.GetFile(key)
+	return v
+}
 
 func (f *MultipartForm) GetFile(key string) (*multipart.FileHeader, bool) {
 	if f == nil {
 		return nil, false
 	}
 
-	fhs, ok := f.File[key]
+	fhs, ok := f.Files[key]
 	if !ok || len(fhs) == 0 {
 		return nil, ok
 	}
@@ -568,7 +573,7 @@ func (f *MultipartForm) GetFiles(key string) ([]*multipart.FileHeader, bool) {
 		return nil, false
 	}
 
-	fhs, ok := f.File[key]
+	fhs, ok := f.Files[key]
 
 	return fhs, ok
 }

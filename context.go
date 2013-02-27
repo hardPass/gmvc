@@ -67,8 +67,8 @@ func (c *Context) MultipartForm(maxMemory int64) (*MultipartForm, error) {
 
 	mf := c.Request.MultipartForm
 	c.multipartForm = &MultipartForm{
-		Form: Form(mf.Value),
-		File: mf.File,
+		Form:  Form(mf.Value),
+		Files: mf.File,
 	}
 	for k, v := range mf.Value {
 		c.form[k] = append(c.form[k], v...)
