@@ -319,7 +319,6 @@ type memoryWatcher struct {
 	timeout time.Duration
 	sem     int32
 	maxidle int
-	ticker  *time.Ticker
 }
 
 func newMemoryWatcher(storage *memoryStorage, timeout time.Duration) *memoryWatcher {
@@ -341,10 +340,14 @@ func (w *memoryWatcher) start() {
 }
 
 func (w *memoryWatcher) run() {
-	w.ticker = time.NewTicker(time.Second)
+	ticker := time.NewTicker(time.Second)
 	idle := 0
 	for {
-		<-w.ticker.C
+		if atomic.LoadInt32(&w.sem) == -1 {
+			ticker.Stop()
+			return
+		}
+		<-ticker.C
 		if w.storage.gc(w.timeout) {
 			idle = 0
 		} else {
@@ -354,13 +357,10 @@ func (w *memoryWatcher) run() {
 			}
 		}
 	}
-	w.ticker.Stop()
+	ticker.Stop()
 	atomic.CompareAndSwapInt32(&w.sem, 1, 0)
 }
 
 func (w *memoryWatcher) stop() {
 	atomic.StoreInt32(&w.sem, -1)
-	if w.ticker != nil {
-		w.ticker.Stop()
-	}
 }
