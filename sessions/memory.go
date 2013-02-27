@@ -341,10 +341,11 @@ func (w *memoryWatcher) start() {
 
 func (w *memoryWatcher) run() {
 	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	idle := 0
 	for {
 		if atomic.LoadInt32(&w.sem) == -1 {
-			ticker.Stop()
 			return
 		}
 		<-ticker.C
@@ -357,7 +358,6 @@ func (w *memoryWatcher) run() {
 			}
 		}
 	}
-	ticker.Stop()
 	atomic.CompareAndSwapInt32(&w.sem, 1, 0)
 }
 
