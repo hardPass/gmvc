@@ -47,10 +47,16 @@ func (c *Context) Form() (Form, error) {
 }
 
 func (c *Context) MultipartForm(maxMemory int64) (*MultipartForm, error) {
-	f := c.multipartForm
-	if f != nil {
-		return f, nil
+	if c.multipartForm != nil {
+		return c.multipartForm, nil
 	}
+
+	if c.form == nil {
+		if _, err := c.Form(); err != nil {
+			return nil, err
+		}
+	}
+
 	if maxMemory <= 0 {
 		maxMemory = defaultMaxMemory
 	}
@@ -62,6 +68,9 @@ func (c *Context) MultipartForm(maxMemory int64) (*MultipartForm, error) {
 	c.multipartForm = &MultipartForm{
 		Form: Form(mf.Value),
 		File: mf.File,
+	}
+	for k, v := range mf.Value {
+		c.form[k] = append(c.form[k], v...)
 	}
 
 	return c.multipartForm, nil
