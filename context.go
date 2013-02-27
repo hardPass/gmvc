@@ -39,7 +39,6 @@ func (c *Context) Form() (Form, error) {
 	if c.form != nil {
 		return c.form, nil
 	}
-
 	if err := c.Request.ParseForm(); err != nil {
 		return nil, err
 	}
@@ -148,7 +147,7 @@ func (c *Context) Render(name string, value interface{}) error {
 }
 
 func (c *Context) WriteString(v ...interface{}) error {
-	_, err := c.ResponseWriter.Write([]byte(fmt.Sprint(v...)))
+	_, err := fmt.Fprint(c.ResponseWriter, v...)
 	return err
 }
 

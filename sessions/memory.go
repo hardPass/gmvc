@@ -15,7 +15,7 @@ import (
 
 var (
 	defaultCookieName string        = "gsessionid"
-	defaultTimeout    time.Duration = 30 * time.Second
+	defaultTimeout    time.Duration = 30 * time.Minute
 )
 
 type Options struct {
@@ -45,14 +45,13 @@ func NewMemoryProvider(timeout time.Duration) *MemoryProvider {
 	}
 
 	runtime.SetFinalizer(p, func(x *MemoryProvider) { x.watcher.stop() })
-
 	return p
 }
 
 func (p *MemoryProvider) GetSession(w http.ResponseWriter, r *http.Request, create bool) (session gmvc.Session, err error) {
-	id := p.readCookie(r)
 	var store *memoryStore
 
+	id := p.getCookieId(r)
 	if id == "" {
 		if create {
 			id, err = p.generateId()
@@ -69,7 +68,7 @@ func (p *MemoryProvider) GetSession(w http.ResponseWriter, r *http.Request, crea
 			if store == nil {
 				return nil, errors.New("fail to create session")
 			}
-			p.writeCookie(w, id)
+			p.setCookieId(w, id, true)
 		} else {
 			return
 		}
@@ -92,7 +91,7 @@ func (p *MemoryProvider) GetSession(w http.ResponseWriter, r *http.Request, crea
 
 func (p *MemoryProvider) deleteSession(w http.ResponseWriter, id string) {
 	p.storage.delete(id)
-	p.removeCookie(w, id)
+	p.setCookieId(w, id, false)
 	return
 }
 
@@ -109,7 +108,7 @@ func (p *MemoryProvider) generateId() (string, error) {
 	return hex.EncodeToString(u), nil
 }
 
-func (p *MemoryProvider) readCookie(r *http.Request) string {
+func (p *MemoryProvider) getCookieId(r *http.Request) string {
 	for _, c := range r.Cookies() {
 		if c.Name == p.CookieName {
 			return c.Value
@@ -118,30 +117,20 @@ func (p *MemoryProvider) readCookie(r *http.Request) string {
 	return ""
 }
 
-func (p *MemoryProvider) writeCookie(w http.ResponseWriter, id string) {
+func (p *MemoryProvider) setCookieId(w http.ResponseWriter, id string, persist bool) {
 	cookie := &http.Cookie{
 		Name:     p.CookieName,
 		Domain:   p.CookieDomain,
 		Path:     p.CookiePath,
 		Secure:   p.CookieSecure,
 		HttpOnly: p.CookieHttpOnly,
-		MaxAge:   p.CookieMaxAge,
 		Value:    id,
 	}
 
-	w.Header().Add("Cache-Control", "private")
-	http.SetCookie(w, cookie)
-}
-
-func (p *MemoryProvider) removeCookie(w http.ResponseWriter, id string) {
-	cookie := &http.Cookie{
-		Name:     p.CookieName,
-		Domain:   p.CookieDomain,
-		Path:     p.CookiePath,
-		Secure:   p.CookieSecure,
-		HttpOnly: p.CookieHttpOnly,
-		MaxAge:   -1,
-		Value:    id,
+	if persist {
+		cookie.MaxAge = p.CookieMaxAge
+	} else {
+		cookie.MaxAge = -1
 	}
 
 	w.Header().Add("Cache-Control", "private")
@@ -254,27 +243,48 @@ func (m *memoryStorage) delete(id string) {
 	}
 }
 
-func (m *memoryStorage) cleanup(timeout time.Duration) bool {
+func (m *memoryStorage) gc(timeout time.Duration) bool {
+	performed := false
+	for {
+		if ok, count := m.cleanup(timeout, 1000); ok {
+			performed = true
+			if count == 0 {
+				break
+			}
+		} else {
+			break
+		}
+	}
+	return performed
+}
+
+func (m *memoryStorage) cleanup(timeout time.Duration, limit int) (bool, int) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	if len(m.elems) == 0 {
-		return false
+		return false, 0
 	}
 
+	count := 0
 	now := time.Now()
-	for e := m.order.Back(); e != nil; e = e.Prev() {
+	for e := m.order.Back(); e != nil; {
 		store := e.Value.(*memoryStore)
-		if store.expire(now, timeout) {
-			delete(m.elems, store.id)
+		if now.Sub(store.utime) > timeout {
 			olde := e
 			e = e.Prev()
 			m.order.Remove(olde)
+			delete(m.elems, store.id)
+			count++
+			if count >= limit {
+				break
+			}
+		} else {
+			break
 		}
-		break
 	}
 
-	return true
+	return true, count
 }
 
 type memoryStore struct {
@@ -304,10 +314,6 @@ func (s *memoryStore) del(key string) error {
 	return nil
 }
 
-func (s *memoryStore) expire(t time.Time, d time.Duration) bool {
-	return t.Sub(s.utime) > d
-}
-
 type memoryWatcher struct {
 	storage *memoryStorage
 	timeout time.Duration
@@ -324,7 +330,7 @@ func newMemoryWatcher(storage *memoryStorage, timeout time.Duration) *memoryWatc
 	return &memoryWatcher{
 		storage: storage,
 		timeout: timeout,
-		maxidle: 10,
+		maxidle: 60,
 	}
 }
 
@@ -339,7 +345,7 @@ func (w *memoryWatcher) run() {
 	idle := 0
 	for {
 		<-w.ticker.C
-		if w.storage.cleanup(w.timeout) {
+		if w.storage.gc(w.timeout) {
 			idle = 0
 		} else {
 			idle++
