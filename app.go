@@ -28,14 +28,17 @@ func NewApp() *App {
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := a.buildContext(w, r)
+	urlpath := r.URL.Path
 
-	if !strings.HasPrefix(r.URL.Path, a.Path) {
-		defer c.finalize()
-		errorStatus(c, http.StatusNotFound)
-		return
+	if a.Path != "/" {
+		if !strings.HasPrefix(urlpath, a.Path) {
+			defer c.finalize()
+			errorStatus(c, http.StatusNotFound)
+			return
+		}
+		urlpath = path.Join("/", urlpath[len(a.Path):])
 	}
 
-	urlpath := path.Join("/", r.URL.Path[len(a.Path):])
 	a.dispatch(c, urlpath)
 }
 

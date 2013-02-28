@@ -379,14 +379,11 @@ func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
 		}
 	}
 
-	t := &pathTemplate{
+	return &pathTemplate{
 		regex:  regex,
 		vars:   vars,
 		prefix: prefix,
-	}
-
-	return t, nil
-
+	}, nil
 }
 
 func (t *pathTemplate) match(urlpath string, vars PathVars) bool {

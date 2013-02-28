@@ -2,10 +2,12 @@ package sessions
 
 import (
 	"container/list"
+	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"github.com/hujh/gmvc"
+	"io"
 	"net/http"
 	"runtime"
 	"sync"
@@ -34,7 +36,7 @@ type MemoryProvider struct {
 }
 
 func NewMemoryProvider(timeout time.Duration) *MemoryProvider {
-	options := &Options{CookieName: defaultCookieName}
+	options := &Options{CookieName: defaultCookieName, CookieHttpOnly: true}
 	storage := newMemoryStorage()
 	watcher := newMemoryWatcher(storage, timeout)
 
@@ -96,16 +98,18 @@ func (p *MemoryProvider) deleteSession(w http.ResponseWriter, id string) {
 }
 
 func (p *MemoryProvider) generateId() (string, error) {
-	u := make([]byte, 16)
-	_, err := rand.Read(u)
-	if err != nil {
+	b := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
 		return "", err
 	}
 
-	u[8] = (u[8] | 0x80) & 0xBF
-	u[6] = (u[6] | 0x40) & 0x4F
+	hash := md5.New()
+	if _, err := hash.Write(b); err != nil {
+		return "", err
+	}
 
-	return hex.EncodeToString(u), nil
+	b = hash.Sum(nil)
+	return hex.EncodeToString(b), nil
 }
 
 func (p *MemoryProvider) getCookieId(r *http.Request) string {

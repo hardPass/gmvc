@@ -65,13 +65,11 @@ func (c *Context) MultipartForm(maxMemory int64) (*MultipartForm, error) {
 		return nil, err
 	}
 
-	if mf := c.Request.MultipartForm; mf != nil {
+	if f := c.Request.MultipartForm; f != nil {
 		c.multipartForm = &MultipartForm{
-			Values: Values(mf.Value),
-			Files:  mf.File,
+			Values: Values(f.Value),
+			Files:  f.File,
 		}
-
-		c.form = Values(c.Request.Form)
 	}
 
 	return c.multipartForm, nil

@@ -11,7 +11,7 @@ var (
 	typeOfRequest       reflect.Type = reflect.TypeOf(new(http.Request))
 	typeOfContext                    = reflect.TypeOf(new(gmvc.Context))
 	typeOfPathVars                   = reflect.TypeOf(gmvc.PathVars{})
-	typeOfForm                       = reflect.TypeOf(gmvc.Form{})
+	typeOfValues                     = reflect.TypeOf(gmvc.Values{})
 	typeOfMultipartForm              = reflect.TypeOf(gmvc.MultipartForm{})
 
 	typeOfResponseWriter = reflect.TypeOf(new(http.ResponseWriter)).Elem()
@@ -24,7 +24,7 @@ var (
 		&RequestArgument{},
 		&ContextArgument{},
 		&PathVarsArgument{},
-		&FormArgument{},
+		&ValuesArgument{},
 		&MultipartFormArgument{},
 
 		&ResponseWriterArgument{},
@@ -83,14 +83,14 @@ func (a *RequestArgument) Get(c *gmvc.Context) (reflect.Value, error) {
 	return reflect.ValueOf(c.Request), nil
 }
 
-type FormArgument struct {
+type ValuesArgument struct {
 }
 
-func (a *FormArgument) Type() reflect.Type {
-	return typeOfForm
+func (a *ValuesArgument) Type() reflect.Type {
+	return typeOfValues
 }
 
-func (a *FormArgument) Get(c *gmvc.Context) (reflect.Value, error) {
+func (a *ValuesArgument) Get(c *gmvc.Context) (reflect.Value, error) {
 	v, err := c.Form()
 	if err != nil {
 		return reflect.ValueOf(nil), err
