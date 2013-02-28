@@ -25,7 +25,7 @@ type Context struct {
 	parent          *Context
 	request         *http.Request
 	response        http.ResponseWriter
-	form            Form
+	form            Values
 	multipartForm   *MultipartForm
 	session         Session
 	sessionProvider SessionProvider
@@ -36,14 +36,14 @@ func (c *Context) App() *App {
 	return c.app
 }
 
-func (c *Context) Form() (Form, error) {
+func (c *Context) Form() (Values, error) {
 	if c.form != nil {
 		return c.form, nil
 	}
 	if err := c.Request.ParseForm(); err != nil {
 		return nil, err
 	}
-	c.form = Form(c.Request.Form)
+	c.form = Values(c.Request.Form)
 	return c.form, nil
 }
 
@@ -65,13 +65,13 @@ func (c *Context) MultipartForm(maxMemory int64) (*MultipartForm, error) {
 		return nil, err
 	}
 
-	mf := c.Request.MultipartForm
-	c.multipartForm = &MultipartForm{
-		Form:  Form(mf.Value),
-		Files: mf.File,
-	}
-	for k, v := range mf.Value {
-		c.form[k] = append(c.form[k], v...)
+	if mf := c.Request.MultipartForm; mf != nil {
+		c.multipartForm = &MultipartForm{
+			Values: Values(mf.Value),
+			Files:  mf.File,
+		}
+
+		c.form = Values(c.Request.Form)
 	}
 
 	return c.multipartForm, nil
@@ -114,8 +114,8 @@ func (c *Context) Include(urlpath string) error {
 		return err
 	}
 
-	for n, v := range c.Request.Header {
-		r.Header[n] = v
+	for k, v := range c.Request.Header {
+		r.Header[k] = v
 	}
 
 	w := newContentOnly(c.ResponseWriter)
@@ -155,7 +155,7 @@ func (c *Context) Redirect(urlstr string, code int) error {
 
 func (c *Context) Render(name string, value interface{}) error {
 	if c.View == nil {
-		return errors.New("no available view")
+		return fmt.Errorf("no available view for render %s", name)
 	}
 
 	return c.View.Render(c, name, value)

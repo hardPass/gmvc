@@ -5,14 +5,37 @@ import (
 	"strconv"
 )
 
-type Form map[string][]string
+type Values map[string][]string
 
-func (f Form) get(key string) (string, bool) {
-	if f == nil {
+func (v Values) Get(key string) string {
+	if v == nil {
+		return ""
+	}
+	ss, ok := v[key]
+	if !ok || len(ss) == 0 {
+		return ""
+	}
+	return ss[0]
+}
+
+func (v Values) Set(key, value string) {
+	v[key] = []string{value}
+}
+
+func (v Values) Add(key, value string) {
+	v[key] = append(v[key], value)
+}
+
+func (v Values) Del(key string) {
+	delete(v, key)
+}
+
+func (v Values) get(key string) (string, bool) {
+	if v == nil {
 		return "", false
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok || len(ss) == 0 {
 		return "", ok
 	}
@@ -22,510 +45,509 @@ func (f Form) get(key string) (string, bool) {
 
 // integer
 
-func (f Form) getInt(key string, def int64, bitsize int) (int64, bool, error) {
-	s, ok := f.get(key)
+func (v Values) getInt(key string, def int64, bitsize int) (int64, bool, error) {
+	s, ok := v.get(key)
 	if !ok || s == "" {
 		return def, ok, nil
 	}
 
-	v, err := strconv.ParseInt(s, 10, bitsize)
+	n, err := strconv.ParseInt(s, 10, bitsize)
 	if err != nil {
 		return def, ok, err
 	}
 
-	return v, ok, nil
+	return n, ok, nil
 }
 
-func (f Form) getUint(key string, def uint64, bitsize int) (uint64, bool, error) {
-	s, ok := f.get(key)
+func (v Values) getUint(key string, def uint64, bitsize int) (uint64, bool, error) {
+	s, ok := v.get(key)
 	if !ok || s == "" {
 		return def, ok, nil
 	}
 
-	v, err := strconv.ParseUint(s, 10, bitsize)
+	n, err := strconv.ParseUint(s, 10, bitsize)
 	if err != nil {
 		return def, ok, err
 	}
 
-	return v, ok, nil
+	return n, ok, nil
 }
 
 //Int
 
-func (f Form) Int(key string) int {
-	v, _, _ := f.getInt(key, 0, 0)
-	return int(v)
+func (v Values) Int(key string) int {
+	n, _, _ := v.getInt(key, 0, 0)
+	return int(n)
 }
 
-func (f Form) GetInt(key string, def int) (int, bool, error) {
-	v, ok, err := f.getInt(key, int64(def), 0)
-	return int(v), ok, err
+func (v Values) GetInt(key string, def int) (int, bool, error) {
+	n, ok, err := v.getInt(key, int64(def), 0)
+	return int(n), ok, err
 }
 
-func (f Form) GetInts(key string) ([]int, bool, error) {
-	if f == nil {
+func (v Values) GetInts(key string) ([]int, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]int, len(ss))
+	ns := make([]int, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseInt(s, 10, 0)
+		n, err := strconv.ParseInt(s, 10, 0)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = int(v)
+		ns[i] = int(n)
 	}
 
-	return vs, ok, nil
+	return ns, ok, nil
 }
 
 // Int8
 
-func (f Form) Int8(key string) int8 {
-	v, _, _ := f.getInt(key, 0, 8)
-	return int8(v)
+func (v Values) Int8(key string) int8 {
+	n, _, _ := v.getInt(key, 0, 8)
+	return int8(n)
 }
 
-func (f Form) GetInt8(key string, def int8) (int8, bool, error) {
-	v, ok, err := f.getInt(key, int64(def), 8)
-	return int8(v), ok, err
+func (v Values) GetInt8(key string, def int8) (int8, bool, error) {
+	n, ok, err := v.getInt(key, int64(def), 8)
+	return int8(n), ok, err
 }
 
-func (f Form) GetInt8s(key string) ([]int8, bool, error) {
-	if f == nil {
+func (v Values) GetInt8s(key string) ([]int8, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]int8, len(ss))
+	ns := make([]int8, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseInt(s, 10, 8)
+		n, err := strconv.ParseInt(s, 10, 8)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = int8(v)
+		ns[i] = int8(n)
 	}
 
-	return vs, ok, nil
+	return ns, ok, nil
 }
 
 // Int16
 
-func (f Form) Int16(key string) int16 {
-	v, _, _ := f.getInt(key, 0, 16)
-	return int16(v)
+func (v Values) Int16(key string) int16 {
+	n, _, _ := v.getInt(key, 0, 16)
+	return int16(n)
 }
 
-func (f Form) GetInt16(key string, def int16) (int16, bool, error) {
-	v, ok, err := f.getInt(key, int64(def), 16)
-	return int16(v), ok, err
+func (v Values) GetInt16(key string, def int16) (int16, bool, error) {
+	n, ok, err := v.getInt(key, int64(def), 16)
+	return int16(n), ok, err
 }
 
-func (f Form) GetInt16s(key string) ([]int16, bool, error) {
-	if f == nil {
+func (v Values) GetInt16s(key string) ([]int16, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]int16, len(ss))
+	ns := make([]int16, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseInt(s, 10, 16)
+		n, err := strconv.ParseInt(s, 10, 16)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = int16(v)
+		ns[i] = int16(n)
 	}
 
-	return vs, ok, nil
+	return ns, ok, nil
 }
 
 // Int32
 
-func (f Form) Int32(key string) int32 {
-	v, _, _ := f.getInt(key, 0, 32)
-	return int32(v)
+func (v Values) Int32(key string) int32 {
+	n, _, _ := v.getInt(key, 0, 32)
+	return int32(n)
 }
 
-func (f Form) GetInt32(key string, def int32) (int32, bool, error) {
-	v, ok, err := f.getInt(key, int64(def), 32)
-	return int32(v), ok, err
+func (v Values) GetInt32(key string, def int32) (int32, bool, error) {
+	n, ok, err := v.getInt(key, int64(def), 32)
+	return int32(n), ok, err
 }
 
-func (f Form) GetInt32s(key string) ([]int32, bool, error) {
-	if f == nil {
+func (v Values) GetInt32s(key string) ([]int32, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]int32, len(ss))
+	ns := make([]int32, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseInt(s, 10, 32)
+		n, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = int32(v)
+		ns[i] = int32(n)
 	}
 
-	return vs, ok, nil
+	return ns, ok, nil
 }
 
 // Int64
 
-func (f Form) Int64(key string) int64 {
-	v, _, _ := f.getInt(key, 0, 64)
-	return v
+func (v Values) Int64(key string) int64 {
+	n, _, _ := v.getInt(key, 0, 64)
+	return n
 }
 
-func (f Form) GetInt64(key string, def int64) (int64, bool, error) {
-	v, ok, err := f.getInt(key, def, 64)
-	return v, ok, err
+func (v Values) GetInt64(key string, def int64) (int64, bool, error) {
+	n, ok, err := v.getInt(key, def, 64)
+	return n, ok, err
 }
 
-func (f Form) GetInt64s(key string) ([]int64, bool, error) {
-	if f == nil {
+func (v Values) GetInt64s(key string) ([]int64, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]int64, len(ss))
+	ns := make([]int64, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseInt(s, 10, 64)
+		n, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = int64(v)
+		ns[i] = int64(n)
 	}
 
-	return vs, ok, nil
+	return ns, ok, nil
 }
 
 // uint
 
-func (f Form) Uint(key string) uint {
-	v, _, _ := f.getUint(key, 0, 0)
-	return uint(v)
+func (v Values) Uint(key string) uint {
+	n, _, _ := v.getUint(key, 0, 0)
+	return uint(n)
 }
 
-func (f Form) GetUint(key string, def uint) (uint, bool, error) {
-	v, ok, err := f.getUint(key, uint64(def), 0)
-	return uint(v), ok, err
+func (v Values) GetUint(key string, def uint) (uint, bool, error) {
+	n, ok, err := v.getUint(key, uint64(def), 0)
+	return uint(n), ok, err
 }
 
-func (f Form) GetUints(key string) ([]uint, bool, error) {
-	if f == nil {
+func (v Values) GetUints(key string) ([]uint, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]uint, len(ss))
+	ns := make([]uint, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseUint(s, 10, 0)
+		n, err := strconv.ParseUint(s, 10, 0)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = uint(v)
+		ns[i] = uint(n)
 	}
 
-	return vs, ok, nil
+	return ns, ok, nil
 }
 
 // Uint8
 
-func (f Form) Uint8(key string) uint8 {
-	v, _, _ := f.getUint(key, 0, 8)
-	return uint8(v)
+func (v Values) Uint8(key string) uint8 {
+	n, _, _ := v.getUint(key, 0, 8)
+	return uint8(n)
 }
 
-func (f Form) GetUint8(key string, def uint8) (uint8, bool, error) {
-	v, ok, err := f.getUint(key, uint64(def), 8)
-	return uint8(v), ok, err
+func (v Values) GetUint8(key string, def uint8) (uint8, bool, error) {
+	n, ok, err := v.getUint(key, uint64(def), 8)
+	return uint8(n), ok, err
 }
 
-func (f Form) GetUint8s(key string) ([]uint16, bool, error) {
-	if f == nil {
+func (v Values) GetUint8s(key string) ([]uint16, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]uint16, len(ss))
+	ns := make([]uint16, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseUint(s, 10, 16)
+		n, err := strconv.ParseUint(s, 10, 16)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = uint16(v)
+		ns[i] = uint16(n)
 	}
 
-	return vs, ok, nil
+	return ns, ok, nil
 }
 
 // Uint16
 
-func (f Form) Uint16(key string) uint16 {
-	v, _, _ := f.getUint(key, 0, 16)
-	return uint16(v)
+func (v Values) Uint16(key string) uint16 {
+	n, _, _ := v.getUint(key, 0, 16)
+	return uint16(n)
 }
 
-func (f Form) GetUint16(key string, def uint16) (uint16, bool, error) {
-	v, ok, err := f.getUint(key, uint64(def), 16)
-	return uint16(v), ok, err
+func (v Values) GetUint16(key string, def uint16) (uint16, bool, error) {
+	n, ok, err := v.getUint(key, uint64(def), 16)
+	return uint16(n), ok, err
 }
 
-func (f Form) GetUint16s(key string) ([]uint16, bool, error) {
-	if f == nil {
+func (v Values) GetUint16s(key string) ([]uint16, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]uint16, len(ss))
+	ns := make([]uint16, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseUint(s, 10, 16)
+		n, err := strconv.ParseUint(s, 10, 16)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = uint16(v)
+		ns[i] = uint16(n)
 	}
 
-	return vs, ok, nil
+	return ns, ok, nil
 }
 
 // Uint32
 
-func (f Form) Uint32(key string) uint32 {
-	v, _, _ := f.getUint(key, 0, 32)
-	return uint32(v)
+func (v Values) Uint32(key string) uint32 {
+	n, _, _ := v.getUint(key, 0, 32)
+	return uint32(n)
 }
 
-func (f Form) GetUint32(key string, def uint32) (uint32, bool, error) {
-	v, ok, err := f.getUint(key, uint64(def), 32)
-	return uint32(v), ok, err
+func (v Values) GetUint32(key string, def uint32) (uint32, bool, error) {
+	n, ok, err := v.getUint(key, uint64(def), 32)
+	return uint32(n), ok, err
 }
 
-func (f Form) GetUint32s(key string) ([]uint32, bool, error) {
-	if f == nil {
+func (v Values) GetUint32s(key string) ([]uint32, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]uint32, len(ss))
+	ns := make([]uint32, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseUint(s, 10, 32)
+		n, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = uint32(v)
+		ns[i] = uint32(n)
 	}
 
-	return vs, ok, nil
+	return ns, ok, nil
 }
 
 // Uint64
 
-func (f Form) Uint64(key string) uint64 {
-	v, _, _ := f.getUint(key, 0, 64)
-	return v
+func (v Values) Uint64(key string) uint64 {
+	n, _, _ := v.getUint(key, 0, 64)
+	return n
 }
 
-func (f Form) GetUint64(key string, def uint64) (uint64, bool, error) {
-	v, ok, err := f.getUint(key, def, 64)
-	return v, ok, err
+func (v Values) GetUint64(key string, def uint64) (uint64, bool, error) {
+	n, ok, err := v.getUint(key, def, 64)
+	return n, ok, err
 }
 
-func (f Form) GetUint64s(key string) ([]uint64, bool, error) {
-	if f == nil {
+func (v Values) GetUint64s(key string) ([]uint64, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]uint64, len(ss))
+	ns := make([]uint64, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseUint(s, 10, 64)
+		n, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = uint64(v)
+		ns[i] = uint64(n)
 	}
 
-	return vs, ok, nil
+	return ns, ok, nil
 }
 
 // float
 
-func (f Form) getFloat(key string, def float64, bitsize int) (float64, bool, error) {
-	s, ok := f.get(key)
+func (v Values) getFloat(key string, def float64, bitsize int) (float64, bool, error) {
+	s, ok := v.get(key)
 	if !ok || s == "" {
 		return def, ok, nil
 	}
 
-	v, err := strconv.ParseFloat(s, bitsize)
+	f, err := strconv.ParseFloat(s, bitsize)
 	if err != nil {
 		return def, ok, err
 	}
 
-	return v, ok, nil
+	return f, ok, nil
 }
 
 // Float32
 
-func (f Form) Float32(key string) float32 {
-	v, _, _ := f.getFloat(key, 0, 32)
-	return float32(v)
+func (v Values) Float32(key string) float32 {
+	f, _, _ := v.getFloat(key, 0, 32)
+	return float32(f)
 }
 
-func (f Form) GetFloat32(key string, def float32) (float32, bool, error) {
-	v, ok, err := f.getFloat(key, float64(def), 32)
-	return float32(v), ok, err
+func (v Values) GetFloat32(key string, def float32) (float32, bool, error) {
+	f, ok, err := v.getFloat(key, float64(def), 32)
+	return float32(f), ok, err
 }
 
-func (f Form) GetFloat32s(key string) ([]float32, bool, error) {
-	if f == nil {
+func (v Values) GetFloat32s(key string) ([]float32, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]float32, len(ss))
+	fs := make([]float32, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseFloat(s, 32)
+		f, err := strconv.ParseFloat(s, 32)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = float32(v)
+		fs[i] = float32(f)
 	}
 
-	return vs, ok, nil
+	return fs, ok, nil
 }
 
 // Float64
 
-func (f Form) Float64(key string) float64 {
-	v, _, _ := f.getFloat(key, 0, 64)
-	return v
+func (v Values) Float64(key string) float64 {
+	f, _, _ := v.getFloat(key, 0, 64)
+	return f
 }
 
-func (f Form) GetFloat64(key string, def float64) (float64, bool, error) {
-	v, ok, err := f.getFloat(key, def, 64)
-	return v, ok, err
+func (v Values) GetFloat64(key string, def float64) (float64, bool, error) {
+	f, ok, err := v.getFloat(key, def, 64)
+	return f, ok, err
 }
 
-func (f Form) GetFloat64s(key string) ([]float64, bool, error) {
-	if f == nil {
+func (v Values) GetFloat64s(key string) ([]float64, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]float64, len(ss))
+	fs := make([]float64, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseFloat(s, 64)
+		f, err := strconv.ParseFloat(s, 64)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = v
+		fs[i] = f
 	}
 
-	return vs, ok, nil
+	return fs, ok, nil
 }
 
 // Bool
 
-func (f Form) Bool(key string) bool {
-	v, _, _ := f.GetBool(key, false)
-	return v
+func (v Values) Bool(key string) bool {
+	b, _, _ := v.GetBool(key, false)
+	return b
 }
 
-func (f Form) GetBool(key string, def bool) (bool, bool, error) {
-	s, ok := f.get(key)
+func (v Values) GetBool(key string, def bool) (bool, bool, error) {
+	s, ok := v.get(key)
 	if !ok || s == "" {
 		return def, ok, nil
 	}
 
-	v, err := strconv.ParseBool(s)
+	b, err := strconv.ParseBool(s)
 	if err != nil {
 		return def, ok, err
 	}
 
-	return v, ok, nil
+	return b, ok, nil
 }
 
-func (f Form) GetBools(key string) ([]bool, bool, error) {
-	if f == nil {
+func (v Values) GetBools(key string) ([]bool, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 	if !ok {
 		return nil, ok, nil
 	}
 
-	vs := make([]bool, len(ss))
+	bs := make([]bool, len(ss))
 	for i, s := range ss {
-		v, err := strconv.ParseBool(s)
+		b, err := strconv.ParseBool(s)
 		if err != nil {
 			return nil, ok, err
 		}
-		vs[i] = v
+		bs[i] = b
 	}
 
-	return vs, ok, nil
+	return bs, ok, nil
 }
 
 // string
 
-func (f Form) String(key string) string {
-	v, _, _ := f.GetString(key, "")
-	return v
+func (v Values) String(key string) string {
+	return v.Get(key)
 }
 
-func (f Form) GetString(key string, def string) (string, bool, error) {
-	s, ok := f.get(key)
+func (v Values) GetString(key string, def string) (string, bool, error) {
+	s, ok := v.get(key)
 	if !ok {
 		return def, ok, nil
 	}
@@ -533,26 +555,26 @@ func (f Form) GetString(key string, def string) (string, bool, error) {
 	return s, ok, nil
 }
 
-func (f Form) GetStrings(key string) ([]string, bool, error) {
-	if f == nil {
+func (v Values) GetStrings(key string) ([]string, bool, error) {
+	if v == nil {
 		return nil, false, nil
 	}
 
-	ss, ok := f[key]
+	ss, ok := v[key]
 
 	return ss, ok, nil
 }
 
 type MultipartForm struct {
-	Form
+	Values
 	Files map[string][]*multipart.FileHeader
 }
 
 // file
 
 func (f *MultipartForm) File(key string) *multipart.FileHeader {
-	v, _ := f.GetFile(key)
-	return v
+	fh, _ := f.GetFile(key)
+	return fh
 }
 
 func (f *MultipartForm) GetFile(key string) (*multipart.FileHeader, bool) {
@@ -564,7 +586,6 @@ func (f *MultipartForm) GetFile(key string) (*multipart.FileHeader, bool) {
 	if !ok || len(fhs) == 0 {
 		return nil, ok
 	}
-
 	return fhs[0], ok
 }
 
@@ -574,6 +595,5 @@ func (f *MultipartForm) GetFiles(key string) ([]*multipart.FileHeader, bool) {
 	}
 
 	fhs, ok := f.Files[key]
-
 	return fhs, ok
 }
