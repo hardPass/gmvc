@@ -11,8 +11,10 @@ import (
 )
 
 var (
-	part *regexp.Regexp = regexp.MustCompile("/((?:[^/{}]|{[^}]*})*)")
-	glob                = regexp.MustCompile("\\*{1,2}|{(?:[^}]|\\\\})*}")
+	part                 *regexp.Regexp = regexp.MustCompile("/((?:[^/{}]|{[^}]*})*)")
+	glob                                = regexp.MustCompile("\\*{1,2}|{(?:[^}]|\\\\})*}")
+	handlerPattern                      = regexp.MustCompile("^(?:(\\S+)\\s+){0,1}(/\\S*)\\s*$")
+	handlerPatternSyntax                = "[HttpMethods] <UrlPattern>"
 )
 
 type route interface {
@@ -32,7 +34,7 @@ func NewRouter() *Router {
 }
 
 func (rt *Router) route(c *Context, urlpath string) (bool, error) {
-	return newRouteChain(c, urlpath, rt.filters, rt.routes).next()
+	return newChain(c, urlpath, rt.filters, rt.routes).next()
 }
 
 func (rt *Router) Subrouter(pattern string) (*Router, error) {
@@ -65,22 +67,21 @@ func (rt *Router) FilterFunc(pattern string, f FilterFunc) error {
 }
 
 func (rt *Router) Handle(pattern string, handler Handler) error {
-	var methods []string
-	var pathPattern string
-	var route *handlerRoute
-
-	s := strings.SplitN(pattern, " ", 2)
-
-	if len(s) > 1 {
-		methods = strings.Split(s[0], ",")
-		pathPattern = s[1]
-	} else {
-		methods = []string{"*"}
-		pathPattern = s[0]
+	match := handlerPattern.FindStringSubmatch(pattern)
+	if match == nil {
+		return fmt.Errorf("incorrect format pattern for handler: %s, syntax: %s", pattern, handlerPatternSyntax)
 	}
 
-	pathPattern = path.Join("/", strings.Trim(pathPattern, " "))
+	var methods []string
+	if match[1] == "" {
+		methods = []string{"*"}
+	} else {
+		methods = strings.Split(match[1], ",")
+	}
 
+	pathPattern := match[2]
+
+	var route *handlerRoute
 	for _, r := range rt.routes {
 		if hr, ok := r.(*handlerRoute); ok {
 			if hr.pattern == pathPattern {
@@ -116,37 +117,7 @@ func (rt *Router) HandleFunc(pattern string, f HandlerFunc) error {
 	return rt.Handle(pattern, f)
 }
 
-type FilterContext struct {
-	chain   *routeChain
-	Context *Context
-	Vars    PathVars
-	next    bool
-	hit     bool
-}
-
-func newFilterContext(chain *routeChain) *FilterContext {
-	return &FilterContext{
-		chain:   chain,
-		Context: chain.context,
-		Vars:    make(PathVars),
-	}
-}
-
-func (fc *FilterContext) Next() error {
-	if fc.next {
-		return errors.New("multiple FilterContext.Next calls")
-	}
-
-	fc.next = true
-	hit, err := fc.chain.next()
-	fc.hit = hit
-	if hit {
-		return err
-	}
-	return nil
-}
-
-type routeChain struct {
+type chain struct {
 	context *Context
 	urlpath string
 	filters []*filter
@@ -155,8 +126,8 @@ type routeChain struct {
 	tail    bool
 }
 
-func newRouteChain(context *Context, urlpath string, filters []*filter, routes []route) *routeChain {
-	return &routeChain{
+func newChain(context *Context, urlpath string, filters []*filter, routes []route) *chain {
+	return &chain{
 		context: context,
 		urlpath: urlpath,
 		filters: filters,
@@ -164,7 +135,7 @@ func newRouteChain(context *Context, urlpath string, filters []*filter, routes [
 	}
 }
 
-func (rc *routeChain) next() (bool, error) {
+func (rc *chain) next() (bool, error) {
 	if rc.tail {
 		return false, nil
 	}
@@ -191,6 +162,36 @@ func (rc *routeChain) next() (bool, error) {
 	return rc.next()
 }
 
+type FilterContext struct {
+	chain   *chain
+	Context *Context
+	Vars    PathVars
+	next    bool
+	hit     bool
+}
+
+func newFilterContext(chain *chain) *FilterContext {
+	return &FilterContext{
+		chain:   chain,
+		Context: chain.context,
+		Vars:    make(PathVars),
+	}
+}
+
+func (fc *FilterContext) Next() error {
+	if fc.next {
+		return errors.New("multiple FilterContext.Next calls")
+	}
+
+	fc.next = true
+	hit, err := fc.chain.next()
+	fc.hit = hit
+	if hit {
+		return err
+	}
+	return nil
+}
+
 type filter struct {
 	pattern string
 	tpl     *pathTemplate
@@ -215,7 +216,7 @@ func newFilter(pattern string, f Filter) (*filter, error) {
 	}, nil
 }
 
-func (fr *filter) do(chain *routeChain) (bool, error) {
+func (fr *filter) do(chain *chain) (bool, error) {
 	fc := newFilterContext(chain)
 	if fr.tpl == nil || fr.tpl.match(chain.urlpath, fc.Vars) {
 		err := fr.filter.DoFilter(fc)

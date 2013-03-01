@@ -13,16 +13,16 @@ var (
 type methodHandler struct {
 	controller reflect.Value
 	method     reflect.Method
-	args       []Argument
+	args       []argument
 	outErr     int
 }
 
-func newMethodHandler(controller interface{}, method reflect.Method, arguments []Argument) (*methodHandler, error) {
+func newMethodHandler(controller interface{}, method reflect.Method) (*methodHandler, error) {
 	numIn := method.Type.NumIn()
-	args := make([]Argument, numIn-1)
+	args := make([]argument, numIn-1)
 
 	for i := 1; i < numIn; i++ {
-		var arg Argument
+		var arg argument
 		t := method.Type.In(i)
 
 		for _, a := range arguments {
