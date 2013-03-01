@@ -32,26 +32,23 @@ type Options struct {
 type MemoryProvider struct {
 	*Options
 	storage *memoryStorage
-	watcher *memoryWatcher
 }
 
 func NewMemoryProvider(timeout time.Duration) *MemoryProvider {
 	options := &Options{CookieName: defaultCookieName, CookieHttpOnly: true}
-	storage := newMemoryStorage()
-	watcher := newMemoryWatcher(storage, timeout)
+	storage := newMemoryStorage(timeout)
 
 	p := &MemoryProvider{
 		Options: options,
 		storage: storage,
-		watcher: watcher,
 	}
 
-	runtime.SetFinalizer(p, func(x *MemoryProvider) { x.watcher.stop() })
+	runtime.SetFinalizer(p, func(x *MemoryProvider) { x.storage.destory() })
 	return p
 }
 
-func (p *MemoryProvider) GetSession(w http.ResponseWriter, r *http.Request, create bool) (session gmvc.Session, err error) {
-	var store *memoryStore
+func (p *MemoryProvider) GetSession(w http.ResponseWriter, r *http.Request, create bool) (s gmvc.Session, err error) {
+	var values *memoryValues
 
 	id := p.getCookieId(r)
 	if id == "" {
@@ -61,13 +58,13 @@ func (p *MemoryProvider) GetSession(w http.ResponseWriter, r *http.Request, crea
 				return
 			}
 			for i := 0; i < 5; i++ {
-				s, ok := p.storage.alloc(id)
+				v, ok := p.storage.alloc(id)
 				if ok {
-					store = s
+					values = v
 					break
 				}
 			}
-			if store == nil {
+			if values == nil {
 				return nil, errors.New("fail to create session")
 			}
 			p.setCookieId(w, id, true)
@@ -75,18 +72,18 @@ func (p *MemoryProvider) GetSession(w http.ResponseWriter, r *http.Request, crea
 			return
 		}
 	} else {
-		store = p.storage.touch(id)
+		values = p.storage.touch(id)
 	}
 
-	session = &memorySession{
+	s = &memorySession{
 		provider: p,
-		store:    store,
+		values:   values,
 		id:       id,
 		w:        w,
 		valid:    true,
 	}
 
-	p.watcher.start()
+	p.storage.gc()
 
 	return
 }
@@ -144,7 +141,7 @@ func (p *MemoryProvider) setCookieId(w http.ResponseWriter, id string, persist b
 type memorySession struct {
 	w        http.ResponseWriter
 	provider *MemoryProvider
-	store    *memoryStore
+	values   *memoryValues
 	id       string
 	valid    bool
 }
@@ -170,39 +167,48 @@ func (s *memorySession) Save() error {
 }
 
 func (s *memorySession) Set(key string, value interface{}) error {
-	return s.store.set(key, value)
+	return s.values.set(key, value)
 }
 
 func (s *memorySession) Get(key string) (interface{}, error) {
-	return s.store.get(key)
+	return s.values.get(key)
 }
 
 func (s *memorySession) Del(key string) error {
-	return s.store.del(key)
+	return s.values.del(key)
 }
 
 type memoryStorage struct {
-	mutex sync.Mutex
-	elems map[string]*list.Element
-	order *list.List
+	mutex   sync.Mutex
+	elems   map[string]*list.Element
+	order   *list.List
+	timeout time.Duration
+	maxidle int
+	sem     int32
 }
 
-func newMemoryStorage() *memoryStorage {
+func newMemoryStorage(timeout time.Duration) *memoryStorage {
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+
 	return &memoryStorage{
-		elems: make(map[string]*list.Element),
-		order: list.New(),
+		elems:   make(map[string]*list.Element),
+		order:   list.New(),
+		timeout: timeout,
+		maxidle: 60,
 	}
 }
 
-func (m *memoryStorage) alloc(id string) (s *memoryStore, ok bool) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (s *memoryStorage) alloc(id string) (v *memoryValues, ok bool) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	e := m.elems[id]
+	e := s.elems[id]
 	if e == nil {
-		s = m.make(id)
-		e := m.order.PushFront(s)
-		m.elems[id] = e
+		v = s.make(id)
+		e := s.order.PushFront(v)
+		s.elems[id] = e
 		ok = true
 		return
 	}
@@ -210,75 +216,100 @@ func (m *memoryStorage) alloc(id string) (s *memoryStore, ok bool) {
 	return nil, false
 }
 
-func (m *memoryStorage) touch(id string) (s *memoryStore) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (s *memoryStorage) touch(id string) (v *memoryValues) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	e := m.elems[id]
+	e := s.elems[id]
 	if e == nil {
-		s = m.make(id)
-		e := m.order.PushFront(s)
-		m.elems[id] = e
+		v = s.make(id)
+		e := s.order.PushFront(v)
+		s.elems[id] = e
 	} else {
-		s = e.Value.(*memoryStore)
-		s.utime = time.Now()
-		m.order.MoveToFront(e)
+		v = e.Value.(*memoryValues)
+		v.utime = time.Now()
+		s.order.MoveToFront(e)
 	}
 
 	return
 }
 
-func (m *memoryStorage) make(id string) *memoryStore {
-	return &memoryStore{
+func (s *memoryStorage) make(id string) *memoryValues {
+	return &memoryValues{
 		id:     id,
 		utime:  time.Now(),
 		values: make(map[string]interface{}),
 	}
 }
 
-func (m *memoryStorage) delete(id string) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (s *memoryStorage) delete(id string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	e := m.elems[id]
-	if e != nil {
-		delete(m.elems, id)
-		m.order.Remove(e)
+	if e := s.elems[id]; e != nil {
+		delete(s.elems, id)
+		s.order.Remove(e)
 	}
 }
 
-func (m *memoryStorage) gc(timeout time.Duration) bool {
-	performed := false
-	for {
-		if ok, count := m.cleanup(timeout, 1000); ok {
-			performed = true
-			if count == 0 {
-				break
+func (s *memoryStorage) gc() {
+	if atomic.CompareAndSwapInt32(&s.sem, 0, 1) {
+		go func() {
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+
+			idle := 0
+			timeout := s.timeout
+			for {
+				if atomic.LoadInt32(&s.sem) == -1 {
+					return
+				}
+
+				<-ticker.C
+				performed := false
+
+				for {
+					if ok, count := s.trim(timeout, 4096); ok {
+						performed = true
+						if count == 0 {
+							break
+						}
+					} else {
+						break
+					}
+				}
+
+				if performed {
+					idle = 0
+				} else {
+					idle++
+					if idle >= s.maxidle {
+						break
+					}
+				}
 			}
-		} else {
-			break
-		}
+			atomic.CompareAndSwapInt32(&s.sem, 1, 0)
+		}()
 	}
-	return performed
 }
 
-func (m *memoryStorage) cleanup(timeout time.Duration, limit int) (bool, int) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (s *memoryStorage) trim(timeout time.Duration, limit int) (bool, int) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	if len(m.elems) == 0 {
+	if len(s.elems) == 0 {
 		return false, 0
 	}
 
 	count := 0
 	now := time.Now()
-	for e := m.order.Back(); e != nil; {
-		store := e.Value.(*memoryStore)
-		if now.Sub(store.utime) > timeout {
+	for e := s.order.Back(); e != nil; {
+		values := e.Value.(*memoryValues)
+		if now.Sub(values.utime) > timeout {
 			olde := e
 			e = e.Prev()
-			m.order.Remove(olde)
-			delete(m.elems, store.id)
+			s.order.Remove(olde)
+			delete(s.elems, values.id)
 			count++
 			if count >= limit {
 				break
@@ -291,80 +322,33 @@ func (m *memoryStorage) cleanup(timeout time.Duration, limit int) (bool, int) {
 	return true, count
 }
 
-type memoryStore struct {
+func (s *memoryStorage) destory() {
+	atomic.StoreInt32(&s.sem, -1)
+}
+
+type memoryValues struct {
 	mutex  sync.RWMutex
 	id     string
 	utime  time.Time
 	values map[string]interface{}
 }
 
-func (s *memoryStore) set(key string, value interface{}) error {
+func (s *memoryValues) set(key string, value interface{}) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.values[key] = value
 	return nil
 }
 
-func (s *memoryStore) get(key string) (interface{}, error) {
+func (s *memoryValues) get(key string) (interface{}, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return s.values[key], nil
 }
 
-func (s *memoryStore) del(key string) error {
+func (s *memoryValues) del(key string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	delete(s.values, key)
 	return nil
-}
-
-type memoryWatcher struct {
-	storage *memoryStorage
-	timeout time.Duration
-	sem     int32
-	maxidle int
-}
-
-func newMemoryWatcher(storage *memoryStorage, timeout time.Duration) *memoryWatcher {
-	if timeout == 0 {
-		timeout = defaultTimeout
-	}
-
-	return &memoryWatcher{
-		storage: storage,
-		timeout: timeout,
-		maxidle: 60,
-	}
-}
-
-func (w *memoryWatcher) start() {
-	if atomic.CompareAndSwapInt32(&w.sem, 0, 1) {
-		go w.run()
-	}
-}
-
-func (w *memoryWatcher) run() {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	idle := 0
-	for {
-		if atomic.LoadInt32(&w.sem) == -1 {
-			return
-		}
-		<-ticker.C
-		if w.storage.gc(w.timeout) {
-			idle = 0
-		} else {
-			idle++
-			if idle >= w.maxidle {
-				break
-			}
-		}
-	}
-	atomic.CompareAndSwapInt32(&w.sem, 1, 0)
-}
-
-func (w *memoryWatcher) stop() {
-	atomic.StoreInt32(&w.sem, -1)
 }
