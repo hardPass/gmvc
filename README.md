@@ -166,8 +166,6 @@ app.SessionProvider = sessions.NewMemoryProvider(30 * time.Minute)
 
 ```
 
-```
-
 ## View
 
 View is a component that render the result, it is a interface type:
