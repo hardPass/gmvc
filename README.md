@@ -36,7 +36,7 @@ func main() {
 
 A gmvc Router matches incoming requests and calls filters and handler for the pattern that matches the URL.
 
-Pattern syntax: [HttpMethods] <PathPattern>
+Pattern syntax: HttpMethods PathPattern
 
 HttpMethods: a list of HTTP Method, separated by ',' (optional)
 PathPattern: a pattern of uri path. use {pathvar:regexp} to extract vars from URIs (require).
