@@ -6,6 +6,19 @@ import (
 
 type PathVars map[string]string
 
+func (p PathVars) Get(key string) string {
+	if p == nil {
+		return ""
+	}
+	return p[key]
+}
+
+// string
+
+func (p PathVars) String(key string) string {
+	return p.Get(key)
+}
+
 // integer
 
 func (p PathVars) getInt(key string, bitsize int) int64 {
@@ -138,13 +151,4 @@ func (p PathVars) Bool(key string) bool {
 	}
 
 	return v
-}
-
-// string
-
-func (p PathVars) Get(key string) string {
-	if p == nil {
-		return ""
-	}
-	return p[key]
 }

@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	mapping       = regexp.MustCompile("^((?:\\S+\\s+){0,1}/\\S*)\\s+(\\S+)$")
+	regexMapping  = regexp.MustCompile("^((?:\\S+\\s+){0,1}/\\S*)\\s+(\\S+)$")
 	mappingSyntax = "[HttpMethods] <UrlPattern> <ControllerMethod>"
 )
 
@@ -17,32 +17,21 @@ type Controller interface {
 	RequestMapping() string
 }
 
-type Controllers struct {
-	router *gmvc.Router
-}
-
-func New(router *gmvc.Router) *Controllers {
-	return &Controllers{
-		router: router,
-	}
-}
-
-func (c *Controllers) Register(pattern string, controller Controller) error {
-	t := reflect.TypeOf(controller)
-
-	router, err := c.router.Subrouter(pattern)
+func Register(router *gmvc.Router, pattern string, controller Controller) error {
+	router, err := router.Subrouter(pattern)
 	if err != nil {
 		return err
 	}
 
-	lines := strings.Split(controller.RequestMapping(), "\n")
-	for _, line := range lines {
+	t := reflect.TypeOf(controller)
+	mapping := controller.RequestMapping()
+	for _, line := range strings.Split(mapping, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 
-		match := mapping.FindStringSubmatch(line)
+		match := regexMapping.FindStringSubmatch(line)
 		if match == nil {
 			return fmt.Errorf("controller %s has incorrect format mapping: '%s', syntax: %s", t, line, mappingSyntax)
 		}

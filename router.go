@@ -11,10 +11,13 @@ import (
 )
 
 var (
-	part                 *regexp.Regexp = regexp.MustCompile("/((?:[^/{}]|{[^}]*})*)")
-	glob                                = regexp.MustCompile("\\*{1,2}|{(?:[^}]|\\\\})*}")
-	handlerPattern                      = regexp.MustCompile("^(?:(\\S+)\\s+){0,1}(/\\S*)\\s*$")
-	handlerPatternSyntax                = "[HttpMethods] <UrlPattern>"
+	regexPart           *regexp.Regexp = regexp.MustCompile("/((?:[^/{}]|{[^}]*})*)")
+	regexGlob                          = regexp.MustCompile("\\*{1,2}|{(?:[^}]|\\\\})*}")
+	regexHandlerPattern                = regexp.MustCompile("^(?:(\\S+)\\s+){0,1}(/\\S*)\\s*$")
+)
+
+var (
+	handlerPatternSyntax = "[HttpMethods] <UrlPattern>"
 )
 
 type route interface {
@@ -42,14 +45,14 @@ func (rt *Router) Subrouter(pattern string) (*Router, error) {
 		return rt, nil
 	}
 
-	subrt := NewRouter()
-	sm, err := newSubroutes(pattern, subrt)
+	srt := NewRouter()
+	r, err := newSubroutes(pattern, srt)
 	if err != nil {
 		return nil, err
 	}
 
-	rt.routes = append(rt.routes, sm)
-	return subrt, nil
+	rt.routes = append(rt.routes, r)
+	return srt, nil
 }
 
 func (rt *Router) Filter(pattern string, filter Filter) error {
@@ -67,7 +70,7 @@ func (rt *Router) FilterFunc(pattern string, f FilterFunc) error {
 }
 
 func (rt *Router) Handle(pattern string, handler Handler) error {
-	match := handlerPattern.FindStringSubmatch(pattern)
+	match := regexHandlerPattern.FindStringSubmatch(pattern)
 	if match == nil {
 		return fmt.Errorf("incorrect format pattern for handler: %s, syntax: %s", pattern, handlerPatternSyntax)
 	}
@@ -302,7 +305,7 @@ type pathTemplate struct {
 }
 
 func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
-	partsubs := part.FindAllStringSubmatch(pattern, -1)
+	partsubs := regexPart.FindAllStringSubmatch(pattern, -1)
 	parts := make([]string, len(partsubs))
 
 	for i, sub := range partsubs {
@@ -310,11 +313,15 @@ func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
 	}
 
 	buf := new(bytes.Buffer)
-	buf.WriteString("^/")
+	buf.WriteString("^")
 
-	for i, part := range parts {
-		locs := glob.FindAllStringIndex(part, -1)
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
 
+		buf.WriteString("/")
+		locs := regexGlob.FindAllStringIndex(part, -1)
 		if len(locs) == 0 {
 			buf.WriteString(regexp.QuoteMeta(part))
 		} else {
@@ -355,10 +362,6 @@ func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
 					buf.WriteString(regexp.QuoteMeta(part[e:]))
 				}
 			}
-		}
-
-		if i < len(parts)-1 {
-			buf.WriteString("/")
 		}
 	}
 
