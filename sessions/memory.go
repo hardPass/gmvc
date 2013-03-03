@@ -306,14 +306,15 @@ func (s *memoryStorage) trim(timeout time.Duration, limit int) (bool, int) {
 	for e := s.order.Back(); e != nil; {
 		values := e.Value.(*memoryValues)
 		if now.Sub(values.utime) > timeout {
+			if count > limit {
+				break
+			}
 			olde := e
 			e = e.Prev()
 			s.order.Remove(olde)
 			delete(s.elems, values.id)
 			count++
-			if count >= limit {
-				break
-			}
+
 		} else {
 			break
 		}
