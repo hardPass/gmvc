@@ -77,8 +77,7 @@ func (h *methodHandler) HandleRequest(c *gmvc.Context) error {
 	if h.outErr != -1 {
 		errv := out[h.outErr]
 		if !errv.IsNil() {
-			err := errv.Interface().(error)
-			return err
+			return errv.Interface().(error)
 		}
 	}
 
