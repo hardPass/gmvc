@@ -22,29 +22,25 @@ const (
 		`{{with .Data}}%s{{end}}`
 )
 
-type PageView struct {
+type TemplateView struct {
 	ContentType string
 
-	mutex    sync.RWMutex
-	root     string
-	cache    map[string]*page
-	duration time.Duration
+	mutex   sync.RWMutex
+	root    string
+	cache   map[string]*page
+	timeout time.Duration
 }
 
-func NewPageView(root string) *PageView {
-	return NewPageViewWithDuration(root, -1)
-}
-
-func NewPageViewWithDuration(root string, d time.Duration) *PageView {
-	return &PageView{
+func NewTemplateView(root string) *TemplateView {
+	return &TemplateView{
 		ContentType: "text/html",
 		root:        root,
 		cache:       make(map[string]*page),
-		duration:    d,
+		timeout:     -1,
 	}
 }
 
-func (v *PageView) Render(c *gmvc.Context, name string, data interface{}) error {
+func (v *TemplateView) Render(c *gmvc.Context, name string, data interface{}) error {
 	w := c.ResponseWriter
 	defer func() {
 		c.ResponseWriter = w
@@ -75,19 +71,19 @@ func (v *PageView) Render(c *gmvc.Context, name string, data interface{}) error 
 	return nil
 }
 
-func (v *PageView) SetDuration(d time.Duration) {
+func (v *TemplateView) SetTimeout(timeout time.Duration) {
 	v.mutex.Lock()
 	defer v.mutex.Unlock()
 
-	v.duration = d
+	v.timeout = timeout
 	for name, p := range v.cache {
-		if p.expired(v.duration) {
+		if p.expired(v.timeout) {
 			delete(v.cache, name)
 		}
 	}
 }
 
-func (v *PageView) render(pc *pageContext, name string) error {
+func (v *TemplateView) render(pc *pageContext, name string) error {
 	if reflect.ValueOf(pc.Data).IsNil() {
 		pc.Data = new(empty)
 	}
@@ -104,12 +100,12 @@ func (v *PageView) render(pc *pageContext, name string) error {
 	return nil
 }
 
-func (v *PageView) lookup(name string) (*template.Template, error) {
+func (v *TemplateView) lookup(name string) (*template.Template, error) {
 	name = filepath.Clean(name)
 
 	v.mutex.RLock()
 	p := v.cache[name]
-	if p != nil && !p.expired(v.duration) {
+	if p != nil && !p.expired(v.timeout) {
 		p.touch()
 		v.mutex.RUnlock()
 		return p.tpl, nil
@@ -132,7 +128,7 @@ func (v *PageView) lookup(name string) (*template.Template, error) {
 	return p.tpl, nil
 }
 
-func (v *PageView) load(name string) (*template.Template, error) {
+func (v *TemplateView) load(name string) (*template.Template, error) {
 	root, err := filepath.Abs(v.root)
 	if err != nil {
 		return nil, err
@@ -174,7 +170,7 @@ func (p *page) touch() {
 type pageContext struct {
 	Context *gmvc.Context
 	Data    interface{}
-	view    *PageView
+	view    *TemplateView
 }
 
 func (c *pageContext) sub() *pageContext {
