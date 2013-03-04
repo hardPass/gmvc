@@ -53,11 +53,11 @@ func (p *MemoryProvider) GetSession(w http.ResponseWriter, r *http.Request, crea
 	id := p.getCookieId(r)
 	if id == "" {
 		if create {
-			id, err = p.generateId()
-			if err != nil {
-				return
-			}
 			for i := 0; i < 5; i++ {
+				id, err = p.generateId()
+				if err != nil {
+					return
+				}
 				v, ok := p.storage.alloc(id)
 				if ok {
 					values = v

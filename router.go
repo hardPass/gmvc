@@ -355,8 +355,8 @@ func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
 				g := part[s:e]
 
 				switch {
-				case g == "?":
-					buf.WriteString("[^/]+")
+				case g == "*":
+					buf.WriteString("[^/]*")
 
 				case g == "**":
 					buf.WriteString(".+")
