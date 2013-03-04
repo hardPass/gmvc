@@ -253,6 +253,3 @@ http.ResponseWriter
 io.ReadCloser
 io.Writer
 ```
-
-TO BE CONTINUED...
-

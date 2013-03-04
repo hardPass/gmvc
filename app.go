@@ -45,7 +45,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (a *App) dispatch(c *Context, urlpath string) {
 	defer c.finalize()
 
-	if hit, err := a.Router.route(c, urlpath); hit {
+	if match, err := a.Router.route(c, urlpath, nil); match {
 		if err != nil {
 			c.Error(err)
 		}

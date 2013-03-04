@@ -21,7 +21,7 @@ var (
 )
 
 type route interface {
-	do(c *Context, urlpath string) (bool, error)
+	match(c *Context, urlpath string, vars PathVars) (bool, error)
 }
 
 type Router struct {
@@ -36,32 +36,28 @@ func NewRouter() *Router {
 	}
 }
 
-func (rt *Router) route(c *Context, urlpath string) (bool, error) {
-	return newChain(c, urlpath, rt.filters, rt.routes).next()
-}
-
 func (rt *Router) Subrouter(pattern string) (*Router, error) {
 	if pattern == "" || pattern == "/" {
 		return rt, nil
 	}
 
 	srt := NewRouter()
-	r, err := newSubroutes(pattern, srt)
+	sr, err := newSubroutes(pattern, srt)
 	if err != nil {
 		return nil, err
 	}
 
-	rt.routes = append(rt.routes, r)
+	rt.routes = append(rt.routes, sr)
 	return srt, nil
 }
 
 func (rt *Router) Filter(pattern string, filter Filter) error {
-	fr, err := newFilter(pattern, filter)
+	f, err := newFilter(pattern, filter)
 	if err != nil {
 		return err
 	}
 
-	rt.filters = append(rt.filters, fr)
+	rt.filters = append(rt.filters, f)
 	return nil
 }
 
@@ -70,21 +66,22 @@ func (rt *Router) FilterFunc(pattern string, f FilterFunc) error {
 }
 
 func (rt *Router) Handle(pattern string, handler Handler) error {
-	match := regexHandlerPattern.FindStringSubmatch(pattern)
-	if match == nil {
+	values := regexHandlerPattern.FindStringSubmatch(pattern)
+	if values == nil {
 		return fmt.Errorf("incorrect format pattern for handler: %s, syntax: %s", pattern, handlerPatternSyntax)
 	}
 
 	var methods []string
-	if match[1] == "" {
+	var pathPattern string
+	var route *handlerRoute
+
+	if values[1] == "" {
 		methods = []string{"*"}
 	} else {
-		methods = strings.Split(match[1], ",")
+		methods = strings.Split(values[1], ",")
 	}
+	pathPattern = values[2]
 
-	pathPattern := match[2]
-
-	var route *handlerRoute
 	for _, r := range rt.routes {
 		if hr, ok := r.(*handlerRoute); ok {
 			if hr.pattern == pathPattern {
@@ -120,79 +117,55 @@ func (rt *Router) HandleFunc(pattern string, f HandlerFunc) error {
 	return rt.Handle(pattern, f)
 }
 
+func (rt *Router) route(c *Context, urlpath string, vars PathVars) (bool, error) {
+	return newChain(c, urlpath, rt.filters, rt.routes, vars).next()
+}
+
 type chain struct {
 	context *Context
 	urlpath string
 	filters []*filter
 	routes  []route
+	vars    PathVars
 	pos     int
 	tail    bool
 }
 
-func newChain(context *Context, urlpath string, filters []*filter, routes []route) *chain {
+func newChain(context *Context, urlpath string, filters []*filter, routes []route, vars PathVars) *chain {
 	return &chain{
 		context: context,
 		urlpath: urlpath,
 		filters: filters,
 		routes:  routes,
+		vars:    vars,
 	}
 }
 
-func (rc *chain) next() (bool, error) {
-	if rc.tail {
+func (c *chain) next() (bool, error) {
+	if c.tail {
 		return false, nil
 	}
 
-	if rc.pos == len(rc.filters) {
-		rc.tail = true
-		for _, route := range rc.routes {
-			if hit, err := route.do(rc.context, rc.urlpath); hit {
+	if c.pos == len(c.filters) {
+		c.tail = true
+		for _, route := range c.routes {
+			if match, err := route.match(c.context, c.urlpath, c.vars); match {
 				return true, err
 			}
 		}
 		return false, nil
 	}
 
-	for rc.pos < len(rc.filters) {
-		fr := rc.filters[rc.pos]
-		rc.pos++
+	for c.pos < len(c.filters) {
+		f := c.filters[c.pos]
+		c.pos++
 
-		if hit, err := fr.do(rc); hit {
+		if match, err := f.match(c); match {
 			return true, err
 		}
 	}
 
-	return rc.next()
-}
-
-type FilterContext struct {
-	chain   *chain
-	Context *Context
-	Vars    PathVars
-	next    bool
-	hit     bool
-}
-
-func newFilterContext(chain *chain) *FilterContext {
-	return &FilterContext{
-		chain:   chain,
-		Context: chain.context,
-		Vars:    make(PathVars),
-	}
-}
-
-func (fc *FilterContext) Next() error {
-	if fc.next {
-		return errors.New("multiple FilterContext.Next calls")
-	}
-
-	fc.next = true
-	hit, err := fc.chain.next()
-	fc.hit = hit
-	if hit {
-		return err
-	}
-	return nil
+	return c.next()
 }
 
 type filter struct {
@@ -219,13 +192,50 @@ func newFilter(pattern string, f Filter) (*filter, error) {
 	}, nil
 }
 
-func (fr *filter) do(chain *chain) (bool, error) {
-	fc := newFilterContext(chain)
-	if fr.tpl == nil || fr.tpl.match(chain.urlpath, fc.Vars) {
-		err := fr.filter.DoFilter(fc)
-		return fc.hit, err
+func (f *filter) match(chain *chain) (bool, error) {
+	vars := make(PathVars)
+	if f.tpl == nil || f.tpl.match(chain.urlpath, vars) {
+		c := newFilterContext(chain, vars)
+		if chain.vars != nil {
+			for k, v := range chain.vars {
+				if _, ok := c.Vars[k]; !ok {
+					c.Vars[k] = v
+				}
+			}
+		}
+		return c.match, f.filter.DoFilter(c)
 	}
 	return false, nil
+}
+
+type FilterContext struct {
+	chain   *chain
+	Context *Context
+	Vars    PathVars
+	match   bool
+	next    bool
+}
+
+func newFilterContext(chain *chain, vars PathVars) *FilterContext {
+	return &FilterContext{
+		chain:   chain,
+		Context: chain.context,
+		Vars:    vars,
+	}
+}
+
+func (fc *FilterContext) Next() error {
+	if fc.next {
+		return errors.New("multiple FilterContext.Next calls")
+	}
+
+	fc.next = true
+	match, err := fc.chain.next()
+	fc.match = match
+	if match {
+		return err
+	}
+	return nil
 }
 
 type subroutes struct {
@@ -245,13 +255,17 @@ func newSubroutes(pattern string, router *Router) (*subroutes, error) {
 	}, nil
 }
 
-func (sr *subroutes) do(c *Context, urlpath string) (bool, error) {
-	match, suffix := sr.tpl.matchPrefix(urlpath, c.Vars)
+func (sr *subroutes) match(c *Context, urlpath string, vars PathVars) (bool, error) {
+	if sr.tpl.hasVars && vars == nil {
+		vars = make(PathVars)
+	}
+
+	match, suffix := sr.tpl.matchPrefix(urlpath, vars)
 	if !match {
 		return false, nil
 	}
 	urlpath = path.Join("/", suffix)
-	return sr.router.route(c, urlpath)
+	return sr.router.route(c, urlpath, vars)
 }
 
 type handlerRoute struct {
@@ -272,44 +286,52 @@ func newHandlerRoute(pattern string) (*handlerRoute, error) {
 	}, nil
 }
 
-func (m *handlerRoute) handle(method string, handler Handler) error {
-	if m.handlers[method] != nil {
-		return fmt.Errorf("Conflicting handler methods mapped for pattern '%s'", m.pattern)
+func (hr *handlerRoute) handle(method string, handler Handler) error {
+	if hr.handlers[method] != nil {
+		return fmt.Errorf("Conflicting handler methods mapped for pattern '%s'", hr.pattern)
 	}
-	m.handlers[method] = handler
+	hr.handlers[method] = handler
 	return nil
 }
 
-func (m *handlerRoute) do(c *Context, urlpath string) (bool, error) {
-	if m.tpl.match(urlpath, c.Vars) {
-		method := strings.ToUpper(c.Request.Method)
-		h := m.handlers[method]
+func (hr *handlerRoute) match(c *Context, urlpath string, vars PathVars) (bool, error) {
+	if hr.tpl.hasVars && vars == nil {
+		vars = make(PathVars)
+	}
+
+	if hr.tpl.match(urlpath, vars) {
+		if vars != nil {
+			c.Vars = vars
+		}
+
+		h := hr.handlers[strings.ToUpper(c.Request.Method)]
 		if h == nil {
-			h = m.handlers["*"]
+			h = hr.handlers["*"]
 		}
 		if h == nil {
 			errorStatus(c, http.StatusMethodNotAllowed)
 			return true, nil
 		}
-		err := h.HandleRequest(c)
-		return true, err
+
+		return true, h.HandleRequest(c)
 	}
 
 	return false, nil
 }
 
 type pathTemplate struct {
-	regex  *regexp.Regexp
-	vars   map[string]int
-	prefix bool
+	regex   *regexp.Regexp
+	prefix  bool
+	hasVars bool
+	vars    map[string]int
 }
 
 func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
-	partsubs := regexPart.FindAllStringSubmatch(pattern, -1)
-	parts := make([]string, len(partsubs))
+	submatches := regexPart.FindAllStringSubmatch(pattern, -1)
+	parts := make([]string, len(submatches))
 
-	for i, sub := range partsubs {
-		parts[i] = sub[1]
+	for i, m := range submatches {
+		parts[i] = m[1]
 	}
 
 	buf := new(bytes.Buffer)
@@ -333,7 +355,7 @@ func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
 				g := part[s:e]
 
 				switch {
-				case g == "*":
+				case g == "?":
 					buf.WriteString("[^/]+")
 
 				case g == "**":
@@ -368,7 +390,7 @@ func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
 	if prefix {
 		buf.WriteString("(|\\/.*)$")
 	} else {
-		buf.WriteString("\\/*$")
+		buf.WriteString("\\/?$")
 	}
 
 	regex, err := regexp.Compile(buf.String())
@@ -384,9 +406,10 @@ func newPathTemplate(pattern string, prefix bool) (*pathTemplate, error) {
 	}
 
 	return &pathTemplate{
-		regex:  regex,
-		vars:   vars,
-		prefix: prefix,
+		regex:   regex,
+		prefix:  prefix,
+		hasVars: len(vars) > 0,
+		vars:    vars,
 	}, nil
 }
 
@@ -395,14 +418,17 @@ func (t *pathTemplate) match(urlpath string, vars PathVars) bool {
 		return t.regex.MatchString(urlpath)
 	}
 
-	sub := t.regex.FindStringSubmatch(urlpath)
-	if sub == nil {
+	submatch := t.regex.FindStringSubmatch(urlpath)
+	if submatch == nil {
 		return false
 	}
 
-	for k, v := range t.vars {
-		vars[k] = sub[v]
+	if t.hasVars && vars != nil {
+		for k, v := range t.vars {
+			vars[k] = submatch[v]
+		}
 	}
+
 	return true
 }
 
@@ -411,17 +437,16 @@ func (t *pathTemplate) matchPrefix(urlpath string, vars PathVars) (bool, string)
 		return false, ""
 	}
 
-	sub := t.regex.FindStringSubmatch(urlpath)
-	if sub == nil {
+	submatch := t.regex.FindStringSubmatch(urlpath)
+	if submatch == nil {
 		return false, ""
 	}
 
-	if vars != nil {
+	if t.hasVars && vars != nil {
 		for k, v := range t.vars {
-			vars[k] = sub[v]
+			vars[k] = submatch[v]
 		}
 	}
 
-	suffix := sub[len(sub)-1]
-	return true, suffix
+	return true, submatch[len(submatch)-1]
 }
